@@ -45,7 +45,7 @@ cc_import(
     tags = ["manual"],
     shared_library = ":libgxf_stream.so",
     hdrs = [
-      "stream_nvscisync.hpp",
+      "stream_nvsci.hpp",
     ],
     visibility = ["//visibility:public"],
 )
@@ -56,7 +56,6 @@ cc_library(
     alwayslink = True,
     hdrs = [
         "stream_nvsci.hpp",
-        "stream_nvscisync.hpp",
         "stream_sync_id.hpp",
     ],
     visibility = ["//visibility:public"],
@@ -65,18 +64,6 @@ cc_library(
 cc_library(
     name = "stream_nvsci",
     hdrs = ["stream_nvsci.hpp"],
-    linkstatic = True,
-    alwayslink = True,
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "stream_nvsci_sync",
-    hdrs = [
-        "stream_nvsci.hpp",
-        "stream_nvscisync.hpp",
-        "stream_sync_id.hpp",
-    ],
     linkstatic = True,
     alwayslink = True,
     visibility = ["//visibility:public"],

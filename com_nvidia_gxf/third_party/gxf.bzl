@@ -49,8 +49,9 @@ def gxf_workspace():
     nv_gxf_http_archive(
         name = "nlohmann-json",
         build_file = clean_dep("//third_party:nlohmann_json.BUILD"),
-        sha256 = "b94997df68856753b72f0d7a3703b7d484d4745c567f3584ef97c96c25a5798e",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/internal/nlohmann-json-3-10-5.zip",
+        sha256 = "ea4b0084709fb934f92ca0a68669daa0fe6f2a2c6400bf353454993a834bb0bb",
+        url = "https://github.com/nlohmann/json/archive/refs/tags/v3.10.5.zip",
+        strip_prefix = "json-3.10.5",
         type = "zip",
         licenses = ["@nlohmann-json//:LICENSE"],
     )
@@ -62,7 +63,7 @@ def gxf_workspace():
         name = "dlpack",
         build_file = clean_dep("//third_party:dlpack.BUILD"),
         sha256 = "cf965c26a5430ba4cc53d61963f288edddcd77443aa4c85ce722aaf1e2f29513",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/dlpack/v0.8.tar.gz",
+        url = "https://github.com/dmlc/dlpack/archive/refs/tags/v0.8.tar.gz",
         type = "tar.gz",
         strip_prefix = "dlpack-0.8",
         licenses = ["@dlpack//:LICENSE"],
@@ -72,7 +73,7 @@ def gxf_workspace():
         name = "gtest",
         build_file = clean_dep("//third_party:gtest.BUILD"),
         sha256 = "ad7fdba11ea011c1d925b3289cf4af2c66a352e18d4c7264392fead75e919363",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/external/googletest-v1.13.0.tar.gz",
+        url = "https://github.com/google/googletest/archive/refs/tags/v1.13.0.tar.gz",
         type = "tar.gz",
         strip_prefix = "googletest-1.13.0/googletest",
         licenses = ["@gtest//:LICENSE"],
@@ -84,10 +85,10 @@ def gxf_workspace():
     nv_gxf_http_archive(
         name = "breakpad",
         build_file = clean_dep("//third_party:breakpad.BUILD"),
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/external/breakpad-v2023.01.27.tar.gz",
+        url = "https://github.com/google/breakpad/archive/bae713be2e51faa5cbe0ac4bcd21c0a3ee72ff8e.tar.gz",
         type = "tar.gz",
-        strip_prefix = "breakpad-2023.01.27",
-        sha256 = "f187e8c203bd506689ce4b32596ba821e1e2f034a83b8e07c2c635db4de3cc0b",
+        strip_prefix = "breakpad-bae713be2e51faa5cbe0ac4bcd21c0a3ee72ff8e",
+        sha256 = "65a0dd6db9065dc539ddf35f969d10b5ad8a7b2c305d2dc5a66a1f8d46f4a904",
         licenses = ["@breakpad//:LICENSE"],
     )
 
@@ -102,8 +103,10 @@ def gxf_workspace():
         name = "lss",
         build_file = clean_dep("//third_party:lss.BUILD"),
         patches = [clean_dep("//third_party:lss_gcc.patch")],
-        sha256 = "6d2e98e9d360797db6348ae725be901c1947e5736d87f07917c2bd835b03eeef",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/external/linux-syscall-support-93426bda6535943ff1525d0460aab5cc0870ccaf.tar.gz",
+        # NOTE: chromium.googlesource.com "+archive" tarballs are generated on the
+        # fly and do not have a stable checksum; integrity is enforced via HTTPS.
+        # sha256 intentionally omitted.
+        url = "https://chromium.googlesource.com/linux-syscall-support/+archive/93426bda6535943ff1525d0460aab5cc0870ccaf.tar.gz",
         type = "tar.gz",
         licenses = ["@lss//:linux_syscall_support.h"],
     )
@@ -135,12 +138,10 @@ def gxf_workspace():
 
     # nvcc-12.2
     # NVCC from https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda-tegra-repo-ubuntu2204-12-6-local_12.6.0-1_arm64.deb
-    nv_gxf_http_archive(
+    nv_gxf_new_local_repository(
         name = "nvcc_12_06",
         build_file = clean_dep("//third_party:nvcc_12_06.BUILD"),
-        sha256 = "347085ba3b3ca4573526dfd344c9f7bab2ee3f16cda26162615da42edaa64ba9",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/internal/nvcc/nvcc-12.6-amd64-tar-xz",
-        type = "tar.xz",
+        path = "/usr/local/cuda-12.8",
         licenses = ["http://docs.nvidia.com/cuda/eula/index.html"],
     )
 
@@ -170,7 +171,7 @@ def gxf_workspace():
     nv_gxf_http_archive(
         name = "rules_pkg",
         urls = [
-            "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/rules_pkg/github-rules_pkg-0.6.0.tar.gz",
+            "https://github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
         ],
         sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
         type = "tar.gz",
@@ -179,12 +180,10 @@ def gxf_workspace():
 
     # Coverity static analysis
     # Created from //sw/p4/tools/Coverity/2022.12.0
-    nv_gxf_http_archive(
+    nv_gxf_new_local_repository(
         name = "coverity",
-        build_file = "@com_nvidia_gxf//coverity/bazel:coverity.BUILD",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/internal/coverity/coverity-2022.12.0.tar.xz",
-        sha256 = "05500d8d0c77db0eb06de7914c36edbe8010d5d66dd924abe7fe48c96d5aa22e",
-        type = "tar.xz",
+        path = "/home/ruler/ex_gxf/tmp04_gxf/local_deps/coverity_stub",
+        build_file = "/home/ruler/ex_gxf/tmp04_gxf/local_deps/coverity_stub/BUILD",
         licenses = ["TBD-Propertietary"],
     )
 
@@ -194,7 +193,8 @@ def gxf_workspace():
         name = "magic_enum",
         licenses = ["@magic_enum//:LICENSE"],
         strip_prefix = "magic_enum-0.9.3",
-        urls = ["https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/magic_enum/v0.9.3.zip"],
+        urls = ["https://github.com/Neargye/magic_enum/archive/refs/tags/v0.9.3.zip"],
+        sha256 = "2ac5f5f0591c8f587b53b89c3ef64c85cc24ebaaa389a659c6bf36a0aa192fe6",
     )
 
     # Nvidia Rapids RMM library
@@ -204,7 +204,7 @@ def gxf_workspace():
         name = "rmm",
         build_file = clean_dep("@com_nvidia_gxf//third_party:rmm.BUILD"),
         sha256 = "bb20877c8d92b322dbcb348c2009040784189d3d3c48f93011e13c1b34f6a22f",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/rmm/v24.04.00.tar.gz",
+        url = "https://github.com/rapidsai/rmm/archive/refs/tags/v24.04.00.tar.gz",
         patches = [clean_dep("@com_nvidia_gxf//third_party:rmm.patch")],
         type = "tar.gz",
         strip_prefix = "rmm-24.04.00",
@@ -217,7 +217,8 @@ def gxf_workspace():
     nv_gxf_http_archive(
         name = "fmt",
         strip_prefix = "fmt-10.2.1",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/fmt/10.2.1.tar.gz",
+        url = "https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz",
+        sha256 = "1250e4cc58bf06ee631567523f48848dc4596133e163f02615c97f78bab6c811",
         patch_cmds = [
             "mv support/bazel/.bazelversion .bazelversion",
             "mv support/bazel/BUILD.bazel BUILD.bazel",
@@ -242,7 +243,7 @@ def gxf_workspace():
         name = "spdlog",
         build_file = clean_dep("@com_nvidia_gxf//third_party:spdlog.BUILD"),
         sha256 = "1586508029a7d0670dfcb2d97575dcdc242d3868a259742b69f100801ab4e16b",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/spdlog/v1.14.1.tar.gz",
+        url = "https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz",
         type = "tar.gz",
         strip_prefix = "spdlog-1.14.1",
         licenses = ["TBD"],
@@ -255,7 +256,7 @@ def gxf_workspace():
         name = "bazel_gazelle",
         licenses = ["@bazel_gazelle//:LICENSE"],
         sha256 = "de69a09dc70417580aabf20a28619bb3ef60d038470c7cf8442fafcf627c21cb",
-        urls = ["https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/bazel-gazelle-v0.24.0.tar.gz"],
+        urls = ["https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.24.0/bazel-gazelle-v0.24.0.tar.gz"],
     )
 
     # Go rules for Bazel
@@ -265,7 +266,7 @@ def gxf_workspace():
         name = "io_bazel_rules_go",
         sha256 = "08c3cd71857d58af3cda759112437d9e63339ac9c6e0042add43f4d94caf632d",
         licenses = ["@io_bazel_rules_go//:LICENSE"],
-        urls = ["https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/rules_go-v0.24.2.tar.gz"],
+        urls = ["https://github.com/bazelbuild/rules_go/releases/download/v0.24.2/rules_go-v0.24.2.tar.gz"],
     )
 
     # Rules for building and handling Docker images with Bazel
@@ -277,7 +278,7 @@ def gxf_workspace():
         patches = ["@com_nvidia_gxf//third_party:rules_docker.context_dir.patch"],
         sha256 = "59536e6ae64359b716ba9c46c39183403b01eabfbd57578e84398b4829ca499a",
         strip_prefix = "rules_docker-0.22.0",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/rules_docker-v0.22.0.tar.gz",
+        url = "https://github.com/bazelbuild/rules_docker/releases/download/v0.22.0/rules_docker-v0.22.0.tar.gz",
     )
 
 def gxf_python_workspace():
@@ -286,19 +287,18 @@ def gxf_python_workspace():
     nv_gxf_http_archive(
         name = "pybind11",
         build_file = clean_dep("//third_party:pybind11.BUILD"),
-        sha256 = "4744701624538da603dde2b533c5a56fac778ea4773650332fe6701b25f191aa",
+        sha256 = "d475978da0cdc2d43b73f30910786759d593a9d8ee05b1b6846d1eb16c6d2e0c",
         strip_prefix = "pybind11-2.11.1",
-        type = "tar.xz",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/external/pybind11-2.11.1.tar.gz",
+        type = "tar.gz",
+        url = "https://github.com/pybind/pybind11/archive/refs/tags/v2.11.1.tar.gz",
         licenses = ["TBD"],
     )
 
     nv_gxf_http_archive(
         name = "python_x86_64_3_10",
         build_file = clean_dep("//third_party:python_x86_64_3_10.BUILD"),
-        sha256 = "f074a1496d6976ca68b90fb0d69d362f9afa50169b2e580bfeeaa4f1be6a69b2",
-        type = "tar.xz",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic/dependencies/internal/python_x86_64_3_10.tar.xz",
+        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/python_x86_64_3_10.tar.gz",
+        type = "tar.gz",
         licenses = ["TBD"],
     )
 
@@ -324,7 +324,7 @@ def gxf_python_workspace():
         name = "rules_python",
         sha256 = "5fa3c738d33acca3b97622a13a741129f67ef43f5fdfcec63b29374cc0574c29",
         strip_prefix = "rules_python-0.9.0",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/rules_python/0.9.0.tar.gz",
+        url = "https://github.com/bazelbuild/rules_python/archive/refs/tags/0.9.0.tar.gz",
         type = "tar.gz",
         licenses = ["TBD"],
     )
@@ -338,8 +338,7 @@ def gxf_tools_workspace():
         name = "bazel_skylib",
         sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",
         urls = [
-            "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/external/bazel-skylib-1.2.1.tar.gz",
-            "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/bazelbuild/bazel-skylib/bazel-skylib-1.2.1.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
         ],
         type = "tar.gz",
         licenses = ["https://github.com/bazelbuild/bazel-skylib/blob/main/LICENSE"],

@@ -208,8 +208,6 @@ files_to_copy_release:
       dst: "gxf/stream/BUILD",
     },
     {
-      src: "gxf/stream/tests/BUILD.release",
-      dst: "gxf/stream/tests/BUILD",
     },
     {
       src: "gxf/ucx/BUILD.release",
@@ -601,12 +599,8 @@ files_to_copy_test_as_is: [
     "gxf/std/yaml_file_loader.hpp",
 
     "gxf/stream/stream_nvsci.hpp",
-    "gxf/stream/stream_nvscisync.hpp",
     "gxf/stream/stream_sync_id.hpp",
 
-    "gxf/stream/tests/test_stream_sync_cuda_ext.cpp",
-    "gxf/stream/tests/test_gxf_stream_sync_cuda_helper.hpp",
-    "gxf/stream/tests/test_gxf_stream_cuda_dotproduct.yaml",
 
     "gxf/test/BUILD",
     "gxf/test/test_main.cpp",
@@ -773,14 +767,6 @@ files_to_copy_test_as_is: [
     "third_party/nlohmann_json.BUILD",
     "third_party/nvcc_12_02.BUILD",
     "third_party/nvcc_12_06.BUILD",
-    "third_party/nvsci_aarch64_hp21ea_sbsa.BUILD",
-    "third_party/nvsci_aarch64_hp21ga_sbsa.BUILD",
-    "third_party/nvsci_aarch64_jetpack60.BUILD",
-    "third_party/nvsci_aarch64_jetpack61.BUILD",
-    "third_party/nvsci_x86_64_cuda_12_2.BUILD",
-    "third_party/nvsci_x86_64_cuda_12_6.BUILD",
-    "third_party/nvsci_x86_64_rhel9_cuda_12_2.BUILD",
-    "third_party/nvsci.bzl",
     "third_party/python_aarch64_3_10.BUILD",
     "third_party/python_x86_64_3_10.BUILD",
     "third_party/python_x86_64_rhel9_3_10.BUILD",

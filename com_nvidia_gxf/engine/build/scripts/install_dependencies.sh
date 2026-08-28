@@ -73,13 +73,7 @@ install_package latexmk texlive-latex-recommended texlive-latex-extra \
                 texlive-fonts-recommended texlive-luatex texlive-xetex
 # Install jq for deploy script
 install_package jq
-# Install NvSci package
-if [[ $UBUNTU_VERSION == "22.04" ]]; then
-  wget https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic/dependencies/internal/nvsci/nvsci_pkg_x86_64_rel-36_20230807_34016753.deb || \
-    { echo "Error:NvSci installer download failed "; exit 1; }
-  sudo dpkg -i nvsci_pkg_x86_64_rel-36_20230807_34016753.deb
-  rm nvsci_pkg_x86_64_rel-36_20230807_34016753.deb
-fi
+# NOTE: NvSci system package installation removed in this NvSci-free build.
 
 $PYTHON -r engine/build/scripts/registry_requirements.txt --verbose || exit 1
 

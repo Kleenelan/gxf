@@ -34,9 +34,8 @@ def ucx_workspace():
     nv_gxf_http_archive(
         name = "ucx_x86_64_cuda_12_6",
         build_file = "@com_nvidia_gxf//third_party/ucx:ucx_x86_64_cuda_12_6.BUILD",
-        sha256 = "d4ed18260e1e2d4b59c9b6017e0772d3cd7a314fd64df5689e02dfb2205ea224",
+        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/ucx_x86_64_cuda_12_6.tar.gz",
         type = "tar.gz",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/internal/ucx/ucx-cuda-x86-cuda-12.6.tar.gz",
         licenses = ["TBD"],
     )
 

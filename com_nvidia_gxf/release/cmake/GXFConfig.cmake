@@ -89,10 +89,6 @@ if(GXF_FIND_COMPONENTS AND ("rmm" IN_LIST GXF_FIND_COMPONENTS))
   find_dependency(rmm)
 endif()
 
-if(GXF_FIND_COMPONENTS AND "stream" IN_LIST GXF_FIND_COMPONENTS)
-  find_dependency(nvsci)
-endif()
-
 if(GXF_FIND_COMPONENTS AND ("serialization" IN_LIST GXF_FIND_COMPONENTS OR "ucx" IN_LIST GXF_FIND_COMPONENTS))
     find_dependency(Protobuf CONFIG)
 endif()

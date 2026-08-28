@@ -28,13 +28,11 @@ git_repository(
 load("@com_nvidia_gxf//gxf:repo.bzl", "nv_gxf_git_repository", "nv_gxf_new_git_repository")
 load("@com_nvidia_gxf//third_party:cuda.bzl", "cuda_workspace")
 load("@com_nvidia_gxf//third_party:gxf.bzl", "gxf_test_data", "gxf_workspace", "gxf_python_workspace", "gxf_tools_workspace")
-load("@com_nvidia_gxf//third_party:nvsci.bzl", "nvsci_workspace")
 load("@com_nvidia_gxf//third_party/ucx:ucx.bzl", "ucx_workspace")
 load("@com_nvidia_gxf//third_party/ipc:ipc.bzl", "ipc_workspace")
 
 ucx_workspace()
 ipc_workspace()
-nvsci_workspace()
 cuda_workspace()
 gxf_workspace()
 gxf_python_workspace()

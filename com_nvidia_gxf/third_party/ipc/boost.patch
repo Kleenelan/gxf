@@ -1,27 +1,22 @@
 Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
-NVIDIA CORPORATION and its licensors retain all intellectual property
-and proprietary rights in and to this software, related documentation
-and any modifications thereto. Any use, reproduction, disclosure or
-distribution of this software and related documentation without an express
-license agreement from NVIDIA CORPORATION is strictly prohibited.
----
+Patch rules_boost to:
+  1. download boost 1.80.0 from the public boost archives (was: NVIDIA internal mirror)
+  2. use @boringssl instead of @openssl for asio_ssl
+
 diff --git boost/boost.bzl boost/boost.bzl
 --- boost/boost.bzl
 +++ boost/boost.bzl
-@@ -211,16 +211,13 @@
-         build_file = "@com_github_nelhage_rules_boost//:BUILD.boost",
-         patch_cmds = ["rm -f doc/pdf/BUILD"],
-         patch_cmds_win = ["Remove-Item -Force doc/pdf/BUILD"],
--        sha256 = "4b2136f98bdd1f5857f1c3dea9ac2018effe65286cf251534b6ae20cc45e1847",
--        strip_prefix = "boost_1_80_0",
--        urls = [
+@@ -214,13 +214,14 @@
+         sha256 = "4b2136f98bdd1f5857f1c3dea9ac2018effe65286cf251534b6ae20cc45e1847",
+         strip_prefix = "boost_1_80_0",
+         urls = [
 -            "https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.gz",
--        ],
-+       url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/external/boost/boost-1.80.0.tar.gz",
-+       strip_prefix = "boost_1_80_0",
++            "https://archives.boost.io/release/1.80.0/source/boost_1_80_0.tar.gz",
++            "https://sourceforge.net/projects/boost/files/boost/1.80.0/boost_1_80_0.tar.gz",
+         ],
      )
-
+ 
      maybe(
          http_archive,
 -        name = "openssl",
@@ -40,4 +35,4 @@ diff --git BUILD.boost BUILD.boost
 +        "@boringssl//:ssl",
      ],
  )
-
+ 

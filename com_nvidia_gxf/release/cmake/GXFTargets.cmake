@@ -260,15 +260,7 @@ if(GXF_FIND_COMPONENTS AND ("stream" IN_LIST GXF_FIND_COMPONENTS))
   add_library(GXF::stream SHARED IMPORTED)
   set_target_properties(GXF::stream PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}"
-    INTERFACE_LINK_LIBRARIES "${_extension_link_libraries};nvsci::nvsci"
-  )
-endif()
-
-if(GXF_FIND_COMPONENTS AND ("test_stream_sync_cuda" IN_LIST GXF_FIND_COMPONENTS))
-  add_library(GXF::test_stream_sync_cuda SHARED IMPORTED)
-  set_target_properties(GXF::test_stream_sync_cuda PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}"
-    INTERFACE_LINK_LIBRARIES "${_extension_link_libraries};GXF::cuda;GXF::stream;nvsci::nvsci"
+    INTERFACE_LINK_LIBRARIES "${_extension_link_libraries}"
   )
 endif()
 

@@ -30,7 +30,7 @@ nv_gxf_cc_library(
     name = "stream_lib",
     hdrs = [
         "stream_nvsci.hpp",
-        "stream_nvscisync.hpp",
+        "stream_sync_id.hpp",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -38,30 +38,14 @@ nv_gxf_cc_library(
     ],
 )
 
+# Pure abstract stream-sync interface. The NvSciSync-based implementation
+# (StreamSync) was removed in this NvSci-free build.
 nv_gxf_cc_library(
     name = "stream_nvsci",
     hdrs = ["stream_nvsci.hpp"],
     visibility = ["//visibility:public"],
     deps = [
-        "stream_nvsci_sync",
         "//gxf/std",
-        "//third_party:nvscisync",
-    ],
-)
-
-nv_gxf_cc_library(
-    name = "stream_nvsci_sync",
-    srcs = ["stream_nvscisync.cpp"],
-    hdrs = [
-        "stream_nvsci.hpp",
-        "stream_nvscisync.hpp",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//gxf/core:gxf_cpp_api",
-        "//third_party:cudart",
-        "//third_party:nvscievent",
-        "//third_party:nvscisync",
     ],
 )
 
@@ -74,7 +58,7 @@ register_extension(
     badges = [""],
     extension = "stream",
     headers = [
-        "stream_nvscisync.hpp",
+        "stream_nvsci.hpp",
         "stream_sync_id.hpp",
     ],
     labels = ["gxf"],

@@ -97,10 +97,33 @@ def write_to_file(path, content):
             f.write(LICENSE)
         f.write(content)
 
+# Non-.so release file entries and the rules that produce them.
+# (Used to build an explicit target list instead of `bazel build ...`,
+# which would also pull container-image targets unavailable outside NVIDIA.)
+SPECIAL_TARGET_LABELS = {
+    "core/libgxf.lo": "//gxf/core:libgxf_core",
+    "std/libgxf_std_static.lo": "//gxf/std:gxf_std_static",
+    "std/libdefault_extension.lo": "//gxf/std:default_extension",
+    "std/libdlpack_utils.lo": "//gxf/std:dlpack_utils",
+    "std/libmetric.lo": "//gxf/std:metric",
+    "std/libtensor.lo": "//gxf/std:tensor",
+    "std/libyaml_file_loader.lo": "//gxf/std:yaml_file_loader",
+    "serialization/libserialization_buffer.lo": "//gxf/serialization:serialization_buffer",
+    "serialization/libentity_serializer.lo": "//gxf/serialization:entity_serializer",
+}
+
+def target_to_label(dst):
+    """Convert a release file path (e.g. 'core/libgxf_core.so') to a Bazel label."""
+    if dst in SPECIAL_TARGET_LABELS:
+        return SPECIAL_TARGET_LABELS[dst]
+    pkg, name = dst.rsplit("/", 1)
+    return f"//gxf/{pkg}:{name}"
+
 def copy_files_for_platform(target_list, platform):
     """Build targets for one platform with Bazel and copy binaries to release folder"""
     bazel_opt = platform.bazel_config
-    cmd = f"bazel build ... --config={bazel_opt}"
+    labels = " ".join(target_to_label(t.dst) for t in target_list)
+    cmd = f"bazel build {labels} --config={bazel_opt}"
     if platform.cxx_config:
         cmd += f" --config={platform.cxx_config}"
     if platform.disable_cxx11_abi:
@@ -136,7 +159,10 @@ def write_lib_files(release_dir, target_list, platform_dict):
         tmp_all_libs = target.get_libs()
         all_libs_str[target.dst] = f"{tmp_all_libs}"
 
-    bazel_clean()
+    if len(platform_dict) > 1:
+        # Only needed to avoid output-dir clashes between multiple platforms;
+        # skip for single-platform builds to preserve the incremental cache.
+        bazel_clean()
 
     for platform in platform_dict.values():
         if not copy_files_for_platform(target_list, platform):

@@ -17,6 +17,7 @@
 load(
     "//gxf:repo.bzl",
     "nv_gxf_http_archive",
+    "nv_gxf_new_local_repository",
     )
 
 CUDA_SO = [
@@ -392,9 +393,8 @@ def cuda_workspace():
     nv_gxf_http_archive(
         name = "cuda_x86_64_12060",
         build_file = clean_dep("//third_party:cuda_x86_64_12060.BUILD"),
-        sha256 = "a6c39c67009fa23dc52c324f69635784ac85a73e8ef8e5d4e8cb5b70d0ed0087",
-        url = "https://urm.nvidia.com/artifactory/sw-isaac-gxf-generic-local/dependencies/internal/cuda/cuda12.6-cudnn9.3.0.75-amd64-tar-xz",
-        type = "tar.xz",
+        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/cuda_x86_64_12060.tar.gz",
+        type = "tar.gz",
         licenses = ["http://docs.nvidia.com/cuda/eula/index.html"],
     )
 

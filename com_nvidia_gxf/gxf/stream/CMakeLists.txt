@@ -17,18 +17,13 @@ gxf_core_add_extension_library(
     NAME stream
     SOURCES
         stream.cpp
-        stream_nvscisync.cpp
     PUBLIC_HEADERS
         stream_nvsci.hpp
-        stream_nvscisync.hpp
         stream_sync_id.hpp
     PUBLIC_DEPENDS
         GXF::core
         GXF::std
-        nvsci::nvscisync
-        CUDA::cudart
 )
 
-if(BUILD_TESTING)
-    add_subdirectory(tests)
-endif()
+# StreamSync (NvSciSync-based) implementation and its tests were removed
+# in this NvSci-free build.

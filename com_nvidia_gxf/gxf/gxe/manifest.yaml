@@ -25,6 +25,5 @@ extensions:
 - gxf/test/extensions/libgxf_test.so
 - gxf/behavior_tree/libgxf_behavior_tree.so
 - gxf/stream/libgxf_stream.so
-- gxf/stream/tests/libgxf_test_stream_sync_cuda.so
 - gxf/ucx/libgxf_ucx.so
 - gxf/rmm/libgxf_rmm.so

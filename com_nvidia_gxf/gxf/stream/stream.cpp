@@ -7,7 +7,6 @@ and any modifications thereto. Any use, reproduction, disclosure or
 distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
-#include "gxf/stream/stream_nvscisync.hpp"
 #include "gxf/stream/stream_sync_id.hpp"
 #include "gxf/std/extension_factory_helper.hpp"
 
@@ -21,7 +20,7 @@ GXF_EXT_FACTORY_SET_DISPLAY_INFO("Stream Extension", "Stream", "GXF Stream Exten
 GXF_EXT_FACTORY_ADD_0(0x65bda2a27cfd4dfe, 0xa80a53ad72f5c2a7, nvidia::gxf::StreamSyncId,
                       "Provides access to deduce stream sync handle.");
 
-GXF_EXT_FACTORY_ADD(0x0011bee75d5343ee, 0xaafa61485a436bc4, nvidia::gxf::StreamSync,
-                    nvidia::gxf::Component, "Provides access to GXF stream Sync.");
+// NOTE: The NvSciSync-based StreamSync component was removed in this
+// NvSci-free build.
 
 GXF_EXT_FACTORY_END()

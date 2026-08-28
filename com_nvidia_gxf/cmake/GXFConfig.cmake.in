@@ -56,14 +56,6 @@ if(GXF_FIND_COMPONENTS AND "python_codelet" IN_LIST GXF_FIND_COMPONENTS)
     find_dependency(pybind11)
 endif()
 
-if(GXF_FIND_COMPONENTS AND "stream" IN_LIST GXF_FIND_COMPONENTS)
-    find_dependency(nvsci)
-endif()
-
-if(GXF_FIND_COMPONENTS AND "stream" IN_LIST GXF_FIND_COMPONENTS)
-    find_dependency(nvsci)
-endif()
-
 if(GXF_FIND_COMPONENTS AND ("ucx" IN_LIST GXF_FIND_COMPONENTS))
     # TODO: Multiple UCX "find"s will result in target redefinition.
     # We arbitrarily select the `ucx:ucs` target as a proxy workaround

@@ -16,12 +16,9 @@
 """
 
 load("//third_party:cuda.bzl", "cuda_deps")
-load("//third_party:nvsci.bzl", "nvsci_deps")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 
 cuda_deps()
-
-nvsci_deps()
 
 # Select python version based on target platform (default: python 3.10)
 alias(
