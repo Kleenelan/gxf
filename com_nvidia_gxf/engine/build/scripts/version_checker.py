@@ -31,7 +31,7 @@ packages = {
     "Cuda": {
         "host": "10.x.x",
         "jetson": "10.x.x",
-        "cmd": "/usr/local/cuda/bin/nvcc --version | grep release | awk '{print $NF}' | cut -c 2-"
+        "cmd": os.environ.get("CUDA_HOME", "/usr/local/cuda") + "/bin/nvcc --version | grep release | awk '{print $NF}' | cut -c 2-"
     },
     "Cudnn": {
         "host": "7.6.x.x",

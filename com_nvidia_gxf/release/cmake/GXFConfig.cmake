@@ -66,7 +66,7 @@ if(NOT TARGET CUDA::nvtx3)
     find_file(
         CUDA_nvtx3_INCLUDE_DIR
         NAME "nvtx3"
-        HINTS /usr/local/cuda-12/include
+        HINTS ${CUDA_HOME}/include $ENV{CUDA_HOME}/include /usr/local/cuda-12/include
         REQUIRED
     )
     add_library(CUDA::nvtx3 INTERFACE IMPORTED)

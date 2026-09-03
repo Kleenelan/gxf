@@ -1,3 +1,5 @@
+pay attention to CUDA_HOME/UCX_HOME/DEVCC/GXF_PYTHON
+
 # Graph eXecution Framework (GXF)
 
 ## Overview

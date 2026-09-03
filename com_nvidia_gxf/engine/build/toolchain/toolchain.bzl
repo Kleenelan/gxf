@@ -18,6 +18,10 @@
 _TARGET_PLATFORM = "target_platform"
 _COMPLIER = "compiler"
 _CPU = "cpu"
+# Optional device-side CUDA compiler override (e.g. DEVCC=clang++ or
+# DEVCC=/path/to/nvcc). Set by build2.sh (default: $CUDA_HOME/bin/nvcc);
+# falls back to the per-platform nvcc repo below when unset.
+_DEVCC = "DEVCC"
 
 _GCC_PATH_MAP = {
     "x86_64_cuda_12_6|gcc-11": "/usr/bin/gcc-11",
@@ -61,9 +65,11 @@ def _toolchain_impl(repository_ctx):
     cpu = repository_ctx.os.environ[_CPU]
     compiler = repository_ctx.os.environ[_COMPLIER]
 
+    devcc = repository_ctx.os.environ.get(_DEVCC, "")
+
     substitutions = {
         "%{gcc_path}": _GCC_PATH_MAP[target_platform + "|" + compiler],
-        "%{nvcc_path}": _NVCC_PATH_MAP[target_platform],
+        "%{nvcc_path}": devcc if devcc else _NVCC_PATH_MAP[target_platform],
         "%{cuda_capabilities}": _CUDA_CAPABILITIES_MAP[target_platform],
     }
 
@@ -76,7 +82,7 @@ def _toolchain_impl(repository_ctx):
             host_config = "x86_64_cuda_12_2"
         host_substitutions = {
             "%{gcc_path}": _GCC_PATH_MAP[host_config + "|" + compiler],
-            "%{nvcc_path}": _NVCC_PATH_MAP[host_config],
+            "%{nvcc_path}": devcc if devcc else _NVCC_PATH_MAP[host_config],
             "%{cuda_capabilities}": _CUDA_CAPABILITIES_MAP[host_config],
         }
 
@@ -108,6 +114,9 @@ def _toolchain_impl(repository_ctx):
 toolchain_configure = repository_rule(
     environ = [
         _TARGET_PLATFORM,
+        _CPU,
+        _COMPLIER,
+        _DEVCC,
     ],
     implementation = _toolchain_impl,
 )

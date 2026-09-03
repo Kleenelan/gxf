@@ -63,3 +63,28 @@ def nv_gxf_new_local_repository(licenses, name, **kwargs):
         **kwargs
     )
 
+def _cuda_home_repository_impl(repository_ctx):
+    """
+    Exposes the CUDA toolkit under $CUDA_HOME (default /usr/local/cuda,
+    overridable via --repo_env=CUDA_HOME=...) as a Bazel repository, without
+    hardcoding any machine-specific absolute path in the source tree.
+
+    Only the subtrees consumed by the toolchain (bin/, nvvm/) are linked in;
+    the provided build_file is installed as the repo BUILD file.
+    """
+    cuda_home = repository_ctx.os.environ.get("CUDA_HOME", "/usr/local/cuda")
+    if not repository_ctx.path(cuda_home + "/bin").exists:
+        fail("CUDA_HOME not found at '%s' (set it via --repo_env=CUDA_HOME=...)" % cuda_home)
+    repository_ctx.symlink(cuda_home + "/bin", "bin")
+    repository_ctx.symlink(cuda_home + "/nvvm", "nvvm")
+    repository_ctx.symlink(repository_ctx.attr.build_file, "BUILD")
+
+cuda_home_repository = repository_rule(
+    implementation = _cuda_home_repository_impl,
+    attrs = {
+        "build_file": attr.label(mandatory = True),
+    },
+    environ = ["CUDA_HOME"],
+    local = True,
+)
+

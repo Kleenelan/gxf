@@ -393,7 +393,10 @@ def cuda_workspace():
     nv_gxf_http_archive(
         name = "cuda_x86_64_12060",
         build_file = clean_dep("//third_party:cuda_x86_64_12060.BUILD"),
-        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/cuda_x86_64_12060.tar.gz",
+        # Offline build: the URL is a placeholder resolved by file name +
+        # sha256 from --distdir (local_deps/dist, see build2.sh).
+        url = "https://local.invalid/local_deps/cuda_x86_64_12060.tar.gz",
+        sha256 = "22352be8a351a1e11de16522fa8bcf99abafb1a3b4b8cd66ce219d6ee61dadc7",
         type = "tar.gz",
         licenses = ["http://docs.nvidia.com/cuda/eula/index.html"],
     )

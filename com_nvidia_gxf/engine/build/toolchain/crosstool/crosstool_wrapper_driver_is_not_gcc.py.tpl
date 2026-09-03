@@ -43,7 +43,9 @@ import os
 import subprocess
 import re
 import sys
-import pipes
+# shlex.quote is available on all Python >= 3.3; the 'pipes' module was
+# removed in Python 3.13 (PEP 594).
+import shlex
 
 # Template values set by cuda_autoconf.
 NVCC_PATH = "%{nvcc_path}"
@@ -241,7 +243,7 @@ def main():
 
   if args.x and args.x[0] == 'cuda':
     if args.cuda_log: Log('-x cuda')
-    leftover = [pipes.quote(s) for s in leftover]
+    leftover = [shlex.quote(s) for s in leftover]
     if args.cuda_log: Log('using nvcc')
     return InvokeNvcc(leftover, log=args.cuda_log)
 

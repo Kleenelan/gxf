@@ -33,9 +33,10 @@ alias(
 alias(
   name = "python_x86_64",
   actual = select({
-    "//engine/build:ubuntu_python3_10": "@python_x86_64_3_10",
+    # Ubuntu x86_64: version-agnostic local repackage (build2.sh, GXF_PYTHON)
+    "//engine/build:ubuntu_python3_10": "@python_local//:python_local",
     "//engine/build:rhel_python3_10": "@python_x86_64_rhel9_3_10",
-    "//conditions:default": "@python_x86_64_3_10",
+    "//conditions:default": "@python_local//:python_local",
     }),
   visibility = ["//visibility:public"],
 )

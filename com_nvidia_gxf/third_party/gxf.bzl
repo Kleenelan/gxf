@@ -17,6 +17,7 @@
 
 load(
     "//gxf:repo.bzl",
+    "cuda_home_repository",
     "nv_gxf_http_archive",
     "nv_gxf_git_repository",
     "nv_gxf_new_git_repository",
@@ -138,11 +139,11 @@ def gxf_workspace():
 
     # nvcc-12.2
     # NVCC from https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda-tegra-repo-ubuntu2204-12-6-local_12.6.0-1_arm64.deb
-    nv_gxf_new_local_repository(
+    # CUDA toolkit from $CUDA_HOME (default /usr/local/cuda; set via
+    # --repo_env=CUDA_HOME=..., build2.sh passes it automatically).
+    cuda_home_repository(
         name = "nvcc_12_06",
         build_file = clean_dep("//third_party:nvcc_12_06.BUILD"),
-        path = "/usr/local/cuda-12.8",
-        licenses = ["http://docs.nvidia.com/cuda/eula/index.html"],
     )
 
     # Aarch64 GNU GCC 11.3.0 cross compiler
@@ -182,8 +183,10 @@ def gxf_workspace():
     # Created from //sw/p4/tools/Coverity/2022.12.0
     nv_gxf_new_local_repository(
         name = "coverity",
-        path = "/home/ruler/ex_gxf/tmp04_gxf/local_deps/coverity_stub",
-        build_file = "/home/ruler/ex_gxf/tmp04_gxf/local_deps/coverity_stub/BUILD",
+        # path is relative to this workspace's root; stub BUILD content is
+        # inlined so no machine-specific absolute paths are needed.
+        path = "../local_deps/coverity_stub",
+        build_file_content = 'package(default_visibility = ["//visibility:public"])\nfilegroup(name = "tools", srcs = [])',
         licenses = ["TBD-Propertietary"],
     )
 
@@ -297,7 +300,24 @@ def gxf_python_workspace():
     nv_gxf_http_archive(
         name = "python_x86_64_3_10",
         build_file = clean_dep("//third_party:python_x86_64_3_10.BUILD"),
-        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/python_x86_64_3_10.tar.gz",
+        # Offline build: the URL is a placeholder resolved by file name +
+        # sha256 from --distdir (local_deps/dist, see build2.sh).
+        url = "https://local.invalid/local_deps/python_x86_64_3_10.tar.gz",
+        sha256 = "a5016cd3fab194c1813b4c4293542fb2526f58825792554547b855e9409cb1b2",
+        type = "tar.gz",
+        licenses = ["TBD"],
+    )
+
+    # Version-agnostic Python repackaged by build2.sh from the interpreter
+    # selected via GXF_PYTHON (3.10/3.11/3.12/3.13/3.14/...). Consumed by
+    # //third_party:python_x86_64 on Ubuntu x86_64.
+    nv_gxf_http_archive(
+        name = "python_local",
+        build_file = clean_dep("//third_party:python_local.BUILD"),
+        # Offline build: the URL is a placeholder resolved by file name +
+        # sha256 from --distdir (local_deps/dist, see build2.sh).
+        url = "https://local.invalid/local_deps/python_local.tar.gz",
+        sha256 = "176a0e639994319d79081c29c8ffcaa9497702cff26403ac0b35d421319e3502",
         type = "tar.gz",
         licenses = ["TBD"],
     )

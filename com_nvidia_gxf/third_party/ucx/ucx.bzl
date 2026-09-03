@@ -34,7 +34,10 @@ def ucx_workspace():
     nv_gxf_http_archive(
         name = "ucx_x86_64_cuda_12_6",
         build_file = "@com_nvidia_gxf//third_party/ucx:ucx_x86_64_cuda_12_6.BUILD",
-        url = "file:///home/ruler/ex_gxf/tmp04_gxf/local_deps/dist/ucx_x86_64_cuda_12_6.tar.gz",
+        # Offline build: the URL is a placeholder resolved by file name +
+        # sha256 from --distdir (local_deps/dist, see build2.sh).
+        url = "https://local.invalid/local_deps/ucx_x86_64_cuda_12_6.tar.gz",
+        sha256 = "f658c5e17c6b5634898638e5c06a74a53e28023f5c29b2fc34b3908f6d396bc9",
         type = "tar.gz",
         licenses = ["TBD"],
     )
