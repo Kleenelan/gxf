@@ -30,13 +30,13 @@
 #   automatically: 2.11.1 for <=3.12, 2.13.6 for 3.13, 3.0.1 for >=3.14.
 #
 # Outputs:
-#   gxf_without_nvsci/com_nvidia_gxf/bazel-bin/gxf/...   (*.so, gxe, ...)
+#   gxf/com_nvidia_gxf/bazel-bin/gxf/...   (*.so, gxe, ...)
 #
 # Requirements: Ubuntu 22.04, gcc-11, CUDA toolkit, UCX, curl, and a
 #               pythonX.Y + dev files matching GXF_PYTHON.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-GXF_DIR="${ROOT}/gxf_without_nvsci/com_nvidia_gxf"
+GXF_DIR="${ROOT}/gxf/com_nvidia_gxf"
 BAZEL="${ROOT}/tools/bazel"
 DIST="${ROOT}/local_deps/dist"
 
@@ -320,7 +320,7 @@ do_package() {
   export PATH="${ROOT}/tools:${HOME}/.local/bin:${PATH}"
   rm -rf /tmp/gxf-release
   python3 release/make_tarball.py \
-    "${ROOT}/gxf_without_nvsci/build_gxf_release_content.yaml" \
+    "${ROOT}/gxf/build_gxf_release_content.yaml" \
     gxf_isaac_release.tar.gz /tmp/gxf-release \
     --single_platform x86_cuda_12_6 || err "make_tarball.py failed"
   mkdir -p "${ROOT}/dist"

@@ -1,2 +1,6 @@
 # Ignore all pycache files
 **/__pycache__/**
+# setup_env.sh / Makefile 构建产物
+/deps/
+com_nvidia_gxf/bin-make/
+/dist/

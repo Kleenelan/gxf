@@ -2,6 +2,33 @@ pay attention to CUDA_HOME/UCX_HOME/DEVCC/GXF_PYTHON
 
 # Graph eXecution Framework (GXF)
 
+## Bazel-free build (setup_env.sh + Makefile, Linux only)
+
+The Bazel build is split into two independent parts:
+
+```bash
+# Part 1 — environment: downloads & builds all third-party deps into ./deps
+# (versions pinned like the .bzl files), and exports CUDA_HOME / UCX_HOME /
+# GXF_DEPS_PREFIX / PATH / LD_LIBRARY_PATH into the current shell.
+source ./setup_env.sh
+
+# Part 2 — build: compiles the 35 release targets with gcc-11/nvcc into
+# com_nvidia_gxf/bin-make/gxf/... (mirrors the bazel-bin layout).
+make -j$(nproc)
+
+make test       # gxe smoke test (test_ping.yaml)
+make package    # release tarball -> dist/gxf_isaac_release.tar.gz
+make clean
+```
+
+Variables (defaults shown): `CUDA_HOME=/usr/local/cuda` (12.6.x),
+`UCX_HOME=/opt/ucx-1.18.0`, `DEVCC=$CUDA_HOME/bin/nvcc`,
+`GXF_PYTHON=<python3 version>`, `GXF_DEPS_DIR=./deps`, `GXF_JOBS=<nproc>`.
+Cleanup of the downloaded deps: `source ./setup_env.sh clean`.
+The original Bazel flow (`build.sh`, WORKSPACE, BUILD files) is untouched.
+
+## Overview
+
 ## Overview
 [GXF](https://docs.nvidia.com/holoscan/sdk-user-guide/overview.html) is a framework from NVIDIA that provides a component-based architecture designed for developing hardware accelerated compute graphs. The framework is at the foundation of other high-performance SDKs such as [NVIDIA Holoscan](https://developer.nvidia.com/holoscan-sdk), [DeepStream](https://docs.nvidia.com/metropolis/deepstream/dev-guide/graphtools-docs/docs/text/GraphComposer_Graph_Runtime.html), and [Isaac ROS](https://github.com/NVIDIA-ISAAC-ROS). For example, [NITROS](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros) (NVIDIA Isaac Transport for ROS) leverages GXF compute graphs embedded within ROS 2 nodes with optimized transport between them to achieve highly efficient ROS application graphs.
 
