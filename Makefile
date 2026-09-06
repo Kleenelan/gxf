@@ -239,7 +239,7 @@ ARTIFACTS    := $(EXT_SOS) $(PYBINDS) $(GXE) $(STATIC_LOS)
 # ---------------------------------------------------------------------------
 # 4. Generic rules
 # ---------------------------------------------------------------------------
-.PHONY: all help env-check test package clean \
+.PHONY: all help env-check test package dist clean \
         core std gxe logger sample behavior_tree serialization network \
         multimedia npp cuda test_cuda test_ext grpc http python_codelet pybinds
 
@@ -250,7 +250,8 @@ help:
 	@echo "Usage: source ./setup_env.sh && make -j\$$(nproc)"
 	@echo "Targets: all (default), core, std, gxe, logger, sample, behavior_tree,"
 	@echo "         serialization, network, multimedia, npp, cuda, test_cuda,"
-	@echo "         test_ext, grpc, http, python_codelet, pybinds, test, package, clean"
+	@echo "         test_ext, grpc, http, python_codelet, pybinds, test, package,"
+	@echo "         dist, clean"
 
 env-check:
 	@test -f "$(YAML_CPP_A)" || { echo "ERROR: $(YAML_CPP_A) not found."; \
@@ -593,6 +594,20 @@ package: all
 	mkdir -p $(GXF_ROOT)/dist
 	mv $(WS)/gxf_isaac_release.tar.gz $(GXF_ROOT)/dist/
 	@echo "==> Tarball at $(GXF_ROOT)/dist/gxf_isaac_release.tar.gz"
+
+# Dist: stage the make-built artifacts into the official gxf-install/
+# {bin,include,lib} layout (same file organization as the released
+# gxf_5.1.0_..._x86_64.tar.gz) and pack it into dist/. All staged files come
+# from this repository; see make_dist.sh for the exact mapping.
+dist: all
+	@echo "==> Creating gxf-install dist tarball ..."
+	@GXF_ROOT='$(GXF_ROOT)' WS='$(WS)' BUILD='$(BUILD)' OBJ='$(OBJ)' \
+	  GXF_DEPS_PREFIX='$(GXF_DEPS_PREFIX)' CXX='$(CXX)' AR='$(AR)' \
+	  EXT_SOS='$(EXT_SOS)' PYBINDS='$(PYBINDS)' \
+	  COMMON_LO='$(COMMON_LO)' LOGGER_LO='$(LOGGER_LO)' \
+	  YAML_CPP_A='$(YAML_CPP_A)' GFLAGS_A='$(GFLAGS_A)' BREAKPAD_A='$(BREAKPAD_A)' \
+	  LDFLAGS='$(LDFLAGS)' SYS_LIBS='$(SYS_LIBS)' \
+	  ./make_dist.sh
 
 clean:
 	rm -rf $(BUILD)

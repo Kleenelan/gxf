@@ -42,6 +42,15 @@ if(NOT TARGET CUDA::nvtx3)
     )
 endif()
 
+# Backport to support the `CCCL::CCCL` target when the installed
+# "FindCUDAToolkit" does not initialize it (it is referenced by GXF::std).
+if(NOT TARGET CCCL::CCCL)
+    add_library(CCCL::CCCL INTERFACE IMPORTED)
+    set_target_properties(CCCL::CCCL
+        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+    )
+endif()
+
 # dependencies for other components
 
 if(GXF_FIND_COMPONENTS AND "http" IN_LIST GXF_FIND_COMPONENTS)

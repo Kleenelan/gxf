@@ -18,6 +18,9 @@ make -j$(nproc)
 
 make test       # gxe smoke test (test_ping.yaml)
 make package    # release tarball -> dist/gxf_isaac_release.tar.gz
+make dist       # gxf-install/{bin,include,lib} tarball (official SDK layout,
+                # same organization as gxf_5.1.0_..._x86_64.tar.gz)
+                # -> dist/gxf_<ver>_<date>_<gitsha>_x86_64.tar.gz
 make clean
 ```
 
