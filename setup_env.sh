@@ -19,7 +19,7 @@
 #                                  re-source is printed at the end)
 #
 # Defaults overridable via environment variables:
-#   CUDA_HOME=/usr/local/cuda        CUDA 12.6.x install dir (must be 12.6.x)
+#   CUDA_HOME=/usr/local/cuda        CUDA install dir (must be 12.6.x or 12.8.x)
 #   UCX_HOME=/opt/ucx-1.18.0         UCX install dir (must contain lib/ and include/)
 #   DEVCC=$CUDA_HOME/bin/nvcc        CUDA device compiler
 #   GXF_PYTHON=<python3 version>     e.g. 3.10/3.11/3.12/3.13/3.14
@@ -106,8 +106,8 @@ _gxf_resolve_homes() {
   if [[ -z "$ver" && -x "$CUDA_HOME/bin/nvcc" ]]; then
     ver="$("$CUDA_HOME/bin/nvcc" --version | grep -oP 'release \K[0-9]+\.[0-9]+' | head -1)"
   fi
-  if [[ -n "$ver" && "$ver" != "12.6" ]]; then
-    _gxf_err "CUDA at $CUDA_HOME is $ver, but this build (x86_64_cuda_12_6) requires CUDA 12.6.x"
+  if [[ -n "$ver" && "$ver" != "12.6" && "$ver" != "12.8" ]]; then
+    _gxf_err "CUDA at $CUDA_HOME is $ver, but this build supports only CUDA 12.6.x / 12.8.x"
     return 1
   fi
   DEVCC="${DEVCC:-$CUDA_HOME/bin/nvcc}"
@@ -221,6 +221,7 @@ _gxf_dep_yaml_cpp() {
     f38a7a7637993943c4c890e352b1fa3f3bf420535634e9a506d9a21c3890d505) || return 1
   b="${_BLD}/yaml-cpp"
   cmake -S "$d" -B "$b" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF -DYAML_CPP_BUILD_CONTRIB=OFF \
     -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="${GXF_DEPS_PREFIX}" || return 1
@@ -238,6 +239,7 @@ _gxf_dep_gflags() {
     a4c5171355e67268b4fd2f31c3f7f2d125683d12e0686fc14893a3ca8c803659) || return 1
   b="${_BLD}/gflags"
   cmake -S "$d" -B "$b" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DGFLAGS_REGISTER_INSTALL_PREFIX=OFF -DGFLAGS_BUILD_TESTING=OFF \
     -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="${GXF_DEPS_PREFIX}" || return 1
@@ -373,6 +375,7 @@ _gxf_dep_grpc() {
   fi
   b="${_BLD}/grpc"
   cmake -S "$d" -B "$b" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DCMAKE_INSTALL_PREFIX="${GXF_DEPS_PREFIX}" -DCMAKE_INSTALL_LIBDIR=lib \
     -DgRPC_BUILD_TESTS=OFF -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_INSTALL=ON \
@@ -399,6 +402,7 @@ _gxf_dep_cpprestsdk() {
     6bd74a637ff182144b6a4271227ea8b6b3ea92389f88b25b215e6f94fd4d41cb) || return 1
   b="${_BLD}/cpprestsdk"
   cmake -S "$d" -B "$b" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DCMAKE_INSTALL_PREFIX="${GXF_DEPS_PREFIX}" -DCMAKE_INSTALL_LIBDIR=lib \
     -DCPPREST_EXCLUDE_WEBSOCKETS=ON -DBUILD_SHARED_LIBS=OFF \

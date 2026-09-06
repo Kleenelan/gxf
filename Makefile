@@ -15,7 +15,7 @@
 #                   (src_lib redirected to bin-make)
 #   make clean      remove com_nvidia_gxf/bin-make
 #
-# Linux only (x86_64, CUDA 12.6). All build parameters (compiler flags,
+# Linux only (x86_64, CUDA 12.6/12.8). All build parameters (compiler flags,
 # target composition) are taken from the actual bazel build artifacts
 # (toolchain crosstool + link params files), guaranteeing equivalence
 # with the bazel build.

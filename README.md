@@ -21,7 +21,7 @@ make package    # release tarball -> dist/gxf_isaac_release.tar.gz
 make clean
 ```
 
-Variables (defaults shown): `CUDA_HOME=/usr/local/cuda` (12.6.x),
+Variables (defaults shown): `CUDA_HOME=/usr/local/cuda` (12.6.x or 12.8.x),
 `UCX_HOME=/opt/ucx-1.18.0`, `DEVCC=$CUDA_HOME/bin/nvcc`,
 `GXF_PYTHON=<python3 version>`, `GXF_DEPS_DIR=./deps`, `GXF_JOBS=<nproc>`.
 Cleanup of the downloaded deps: `source ./setup_env.sh clean`.
