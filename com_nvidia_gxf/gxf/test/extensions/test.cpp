@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 #include "gxf/std/extension_factory_helper.hpp"
+#include "gxf/network/tests/test_clock_sync_helpers.hpp"
+#include "gxf/serialization/tests/serialization_tester.hpp"
 #include "gxf/test/components/entity_monitor.hpp"
 #include "gxf/test/components/mock_allocator.hpp"
 #include "gxf/test/components/mock_codelet.hpp"
@@ -98,6 +100,7 @@ GXF_EXT_FACTORY_BEGIN()
                       "Compares two tensor messages for equality");
   GXF_EXT_FACTORY_ADD(0x92002082602311eb, 0xaeea03cedbfc916f,
                        nvidia::gxf::test::TestTensorStrides, nvidia::gxf::Codelet,
+
                        "Tests Tensor Stride");
   GXF_EXT_FACTORY_ADD(0x557d64785a864052, 0xa2acf94edb0341ca,
                        nvidia::gxf::test::TestMetricLogger, nvidia::gxf::Codelet,
@@ -117,6 +120,12 @@ GXF_EXT_FACTORY_BEGIN()
   GXF_EXT_FACTORY_ADD(0x121178a5ee024251, 0xb2d30663306bf3c3,
                       nvidia::gxf::test::TestLogger, nvidia::gxf::Codelet,
                       "Prints sample logs for various log levels");
+  GXF_EXT_FACTORY_ADD(0x3e8a1c4f9b2d47a6, 0xa15f8e3c7d2b4906,
+                      nvidia::gxf::test::ClockChecker, nvidia::gxf::Codelet,
+                      "Checks clock sync offsets in clock sync tests");
+  GXF_EXT_FACTORY_ADD(0x6c2d9e4a8f1b35c7, 0xd48a2e6b1f3c7859,
+                      nvidia::gxf::test::SerializationTester, nvidia::gxf::Codelet,
+                      "Tests serialization and deserialization of custom types");
   GXF_EXT_FACTORY_ADD(0xbb138e69066aba28, 0xd392c98a9b0849b4,
                       nvidia::gxf::test::PeriodicSchedulingTermWithDelay,
                       nvidia::gxf::PeriodicSchedulingTerm,

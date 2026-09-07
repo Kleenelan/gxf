@@ -1,15 +1,5 @@
 pay attention to CUDA_HOME/UCX_HOME/DEVCC/GXF_PYTHON
 
-typecal usage:
-```bash
-UCX_HOME=/opt/ucx-1.20.0 CUDA_HOME=/usr/local/cuda  source  ./setup_env.sh
-make -j32
-make test
-```
-
-
-
-
 # Graph eXecution Framework (GXF)
 
 ## Bazel-free build (setup_env.sh + Makefile, Linux only)
@@ -27,6 +17,9 @@ source ./setup_env.sh
 make -j$(nproc)
 
 make test       # gxe smoke test (test_ping.yaml)
+make test_suite # quasi-regression: all gxe-runnable yaml test apps
+                # (single process; see run_test_suite.sh for the
+                # classification). make test_suite_mgpu = multi-GPU cases
 make package    # release tarball -> dist/gxf_isaac_release.tar.gz
 make dist       # gxf-install/{bin,include,lib} tarball (official SDK layout,
                 # same organization as gxf_5.1.0_..._x86_64.tar.gz)

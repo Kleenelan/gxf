@@ -195,10 +195,12 @@ NET_LO      := $(addprefix $(L)/gxf/network/lib,$(addsuffix .lo,$(NET_NAMES)))
 # --- gxf/sample libraries ---
 SAMPLE_LO   := $(addprefix $(L)/gxf/sample/lib,$(addsuffix .lo,\
              ping_rx ping_rx_async ping_tx ping_tx_async ping_batch_rx multi_ping_rx))
-# --- gxf/test/components libraries ---
+# --- gxf/test/components libraries (+ test helpers from module tests dirs) ---
 TESTCOMP_LO := $(addprefix $(L)/gxf/test/components/lib,$(addsuffix .lo,\
              entity_monitor mock_allocator mock_codelet mock_failure \
-             mock_receiver mock_transmitter tensor_comparator tensor_generator))
+             mock_receiver mock_transmitter tensor_comparator tensor_generator)) \
+             $(L)/gxf/network/tests/libtest_clock_sync_helpers.lo \
+             $(L)/gxf/serialization/tests/libserialization_tester.lo
 # --- gxf/ucx libraries ---
 UCX_NAMES   := ucx_common ucx_component_serializer ucx_context ucx_entity_serializer \
              ucx_receiver ucx_serialization_buffer ucx_transmitter
@@ -257,7 +259,7 @@ ARTIFACTS    := $(EXT_SOS) $(PYBINDS) $(GXE) $(STATIC_LOS)
 # ---------------------------------------------------------------------------
 # 4. Generic rules
 # ---------------------------------------------------------------------------
-.PHONY: all help env-check test package dist clean \
+.PHONY: all help env-check test test_suite test_suite_mgpu package dist clean \
         core std gxe logger sample behavior_tree serialization network \
         multimedia npp cuda test_cuda test_ext grpc http python_codelet pybinds \
         ucx pubsub
@@ -270,7 +272,7 @@ help:
 	@echo "Targets: all (default), core, std, gxe, logger, sample, behavior_tree,"
 	@echo "         serialization, network, multimedia, npp, cuda, test_cuda,"
 	@echo "         test_ext, grpc, http, python_codelet, pybinds, ucx, pubsub,"
-	@echo "         test, package, dist, clean"
+	@echo "         test, test_suite, test_suite_mgpu, package, dist, clean"
 
 env-check:
 	@test -f "$(YAML_CPP_A)" || { echo "ERROR: $(YAML_CPP_A) not found."; \
@@ -279,7 +281,11 @@ env-check:
 	  echo "Run 'source ./setup_env.sh' first."; exit 1; }
 	@test -d "$(CUDA_HOME)/include" || { echo "ERROR: CUDA_HOME=$(CUDA_HOME) invalid."; exit 1; }
 	@test -d "$(UCX_HOME)/include" -a -d "$(UCX_HOME)/lib" || { \
-	  echo "ERROR: UCX_HOME=$(UCX_HOME) invalid (needs include/ and lib/)."; exit 1; }
+	  echo "ERROR: UCX_HOME=$(UCX_HOME) invalid (needs include/ and lib/)."; \
+	  echo "Hint: set UCX_HOME and SOURCE setup_env.sh (executing ./setup_env.sh"; \
+	  echo "      directly does NOT export the variables into your shell), e.g.:"; \
+	  echo "      UCX_HOME=/opt/ucx-1.20.0 CUDA_HOME=/usr/local/cuda source ./setup_env.sh"; \
+	  exit 1; }
 	@test -f "$(PYTHON_INCLUDE)/Python.h" || { echo "ERROR: Python headers not found ($(PYTHON_INCLUDE))."; exit 1; }
 	@ls $(BOOST_LIBRARY_DIR)/libboost_system.* >/dev/null 2>&1 || { \
 	  echo "ERROR: boost libraries not found in BOOST_LIBRARY_DIR=$(BOOST_LIBRARY_DIR)."; \
@@ -403,6 +409,8 @@ $(eval $(call LO_RULE,$(L)/gxf/test/extensions/libtest_src.lo,$(OBJ)/gxf/test/ex
 $(foreach n,entity_monitor mock_allocator mock_codelet mock_failure mock_receiver \
   mock_transmitter tensor_comparator tensor_generator,\
   $(eval $(call LO_RULE,$(L)/gxf/test/components/lib$(n).lo,$(OBJ)/gxf/test/components/$(n).o)))
+$(eval $(call LO_RULE,$(L)/gxf/network/tests/libtest_clock_sync_helpers.lo,$(OBJ)/gxf/network/tests/test_clock_sync_helpers.o))
+$(eval $(call LO_RULE,$(L)/gxf/serialization/tests/libserialization_tester.lo,$(OBJ)/gxf/serialization/tests/serialization_tester.o))
 # --- gxf/ipc ---
 $(eval $(call LO_RULE,$(L)/gxf/ipc/grpc/libgrpc_src.lo,$(OBJ)/gxf/ipc/grpc/grpc_ext.o))
 $(eval $(call LO_RULE,$(L)/gxf/ipc/grpc/libgrpc_client.lo,$(OBJ)/gxf/ipc/grpc/grpc_client.o))
@@ -505,7 +513,10 @@ $(SO_TESTCUDA): $(L)/gxf/cuda/tests/libtest_cuda_src.lo $(L)/gxf/cuda/tests/libc
 	  $(CUBLAS_LINK) $(CUDART_LINK) $(CUDA_DRV_LINK) \
 	  $(RPATH_ORIGIN) -pthread -ldl)
 
-$(SO_TEST): $(L)/gxf/test/extensions/libtest_src.lo $(TESTCOMP_LO) $(STD_FULL_LO) $(YAML_CPP_A)
+$(SO_TEST): $(L)/gxf/test/extensions/libtest_src.lo $(TESTCOMP_LO) \
+            $(L)/gxf/serialization/libserialization_buffer.lo \
+            $(L)/gxf/serialization/libentity_serializer.lo \
+            $(STD_FULL_LO) $(YAML_CPP_A)
 	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(CUDART_LINK) \
 	  $(RPATH_ORIGIN) -pthread -ldl)
 
@@ -619,6 +630,21 @@ test: all
 	@echo "==> Running gxe smoke test (test_ping.yaml) ..."
 	cd $(WS) && bin-make/gxf/gxe/gxe \
 	  --app=gxf/test/apps/test_ping.yaml --manifest=bin-make/manifest.yaml
+
+# Quasi-regression suite: runs all gxe-runnable yaml test apps (single
+# process, see run_test_suite.sh for the classification). test_suite_mgpu is
+# the multi-GPU category (requires >= 2 GPUs; SKIPped otherwise).
+test_suite: all
+	@echo "==> Running quasi-regression suite (single-machine cases) ..."
+	@GXF_ROOT='$(GXF_ROOT)' WS='$(WS)' BUILD='$(BUILD)' \
+	  UCX_HOME='$(UCX_HOME)' CUDA_HOME='$(CUDA_HOME)' \
+	  ./run_test_suite.sh default
+
+test_suite_mgpu: all
+	@echo "==> Running quasi-regression suite (multi-GPU cases) ..."
+	@GXF_ROOT='$(GXF_ROOT)' WS='$(WS)' BUILD='$(BUILD)' \
+	  UCX_HOME='$(UCX_HOME)' CUDA_HOME='$(CUDA_HOME)' \
+	  ./run_test_suite.sh mgpu
 
 # Release packaging: reuses the repository's make_tarball.py.
 # Two adaptations: 1) the platform src_lib is redirected to bin-make
