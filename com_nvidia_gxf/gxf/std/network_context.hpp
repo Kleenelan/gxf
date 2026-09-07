@@ -32,6 +32,11 @@ class NetworkContext : public Component {
 
   // Closes the connection between transmitters and receivers
   virtual Expected<void> removeRoutes(const Entity& entity) = 0;
+
+  // Checks if all expected network connections have been established
+  // Returns true if all connections are ready, false otherwise
+  // (backported from GXF 5.7.1; default: always ready)
+  virtual bool are_connections_ready() const { return true; }
 };
 
 }  // namespace gxf

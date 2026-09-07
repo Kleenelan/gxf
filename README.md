@@ -1,5 +1,15 @@
 pay attention to CUDA_HOME/UCX_HOME/DEVCC/GXF_PYTHON
 
+typecal usage:
+```bash
+UCX_HOME=/opt/ucx-1.20.0 CUDA_HOME=/usr/local/cuda  source  ./setup_env.sh
+make -j32
+make test
+```
+
+
+
+
 # Graph eXecution Framework (GXF)
 
 ## Bazel-free build (setup_env.sh + Makefile, Linux only)
@@ -29,6 +39,26 @@ Variables (defaults shown): `CUDA_HOME=/usr/local/cuda` (12.6.x or 12.8.x),
 `GXF_PYTHON=<python3 version>`, `GXF_DEPS_DIR=./deps`, `GXF_JOBS=<nproc>`.
 Cleanup of the downloaded deps: `source ./setup_env.sh clean`.
 The original Bazel flow (`build.sh`, WORKSPACE, BUILD files) is untouched.
+
+### GXF 5.x compatibility layer (for holoscan-sdk v4.5.0)
+
+This branch additionally carries GXF 5.1/5.7 compatibility shims so that
+consumers written against newer GXF (e.g. holoscan-sdk v4.5.0, which requires
+GXF 5.7.1) compile, link and run. Everything is a **functional stub** — see the
+notes in each file before relying on it:
+
+- `gxf/pubsub/` — GXF 5.7.1 pub/sub API, ported verbatim + no-op
+  implementations (`libgxf_pubsub.so`; **messages are never delivered**)
+- `gxf/std/cuda_green_context{,_pool}.{hpp,cpp}` — GXF 5.1 Green Context
+  components in `libgxf_std.so` (**no real green contexts are created**)
+- `gxf/ucx/` — the UCX extension is now built (`libgxf_ucx.so`, `make ucx`),
+  plus a stub `UcxContext::initiate_shutdown()` (no graceful drain)
+- Enum/value backports: `MemoryStorageType::kCudaManaged`,
+  `SchedulingPolicy` (+ `CPUThread` accepts but ignores `pin_cores` /
+  `sched_*` parameters), `GXF_PUBSUB_*` result codes
+- API backports: `Tensor/VideoBuffer::memory_buffer()`,
+  `MemoryBuffer::setStream()` (no-op), `Receiver::StageSizeSnapshot`,
+  `NetworkContext::are_connections_ready()`, `Router::requiresNetworkContext()`
 
 ## Overview
 

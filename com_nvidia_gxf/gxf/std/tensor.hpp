@@ -295,6 +295,11 @@ class Tensor {
   // Move the memory buffer
   MemoryBuffer move_buffer() { return std::move(memory_buffer_); }
 
+  // Access the memory buffer (allows setting stream for stream-aware deallocation;
+  // note: setStream() is a no-op in this 4.1-based runtime, see memory_buffer.hpp)
+  MemoryBuffer& memory_buffer() { return memory_buffer_; }
+  const MemoryBuffer& memory_buffer() const { return memory_buffer_; }
+
   // Gets a pointer to the first element stored in this tensor. Requested type must match the
   // tensor element type.
   template <typename T>

@@ -30,6 +30,17 @@ size_t Receiver::back_size() {
   return back_size_abi();
 }
 
+// GXF 5.7.1 compatibility backport: the base implementation reports an empty
+// snapshot; receivers with real staging (e.g. DoubleBufferReceiver) may
+// override this to report coherent front/back queue sizes.
+Receiver::StageSizeSnapshot Receiver::stage_sizes_abi() {
+  return {};
+}
+
+Receiver::StageSizeSnapshot Receiver::stage_sizes() {
+  return stage_sizes_abi();
+}
+
 Expected<void> Receiver::sync() {
   return ExpectedOrCode(sync_abi());
 }

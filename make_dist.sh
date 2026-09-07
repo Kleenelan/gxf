@@ -52,7 +52,7 @@ copy_headers() {
 
 # modules whose libraries are built by the Makefile (+ core/std public API)
 for m in behavior_tree core cuda logger multimedia network npp python_codelet \
-         sample serialization std ipc/grpc ipc/http; do
+         sample serialization std ipc/grpc ipc/http pubsub ucx; do
   copy_headers "$m"
 done
 # test module: only the public component/extension headers
@@ -93,7 +93,8 @@ _info "Writing bin/manifest.yaml ..."
       gxf/cuda/libgxf_cuda.so gxf/cuda/tests/libgxf_test_cuda.so \
       gxf/npp/libgxf_npp.so gxf/serialization/libgxf_serialization.so \
       gxf/network/libgxf_network.so gxf/multimedia/libgxf_multimedia.so \
-      gxf/test/extensions/libgxf_test.so gxf/behavior_tree/libgxf_behavior_tree.so; do
+      gxf/test/extensions/libgxf_test.so gxf/behavior_tree/libgxf_behavior_tree.so \
+      gxf/ucx/libgxf_ucx.so gxf/pubsub/libgxf_pubsub.so; do
     echo "- lib/$e"
   done
 } > "$STAGE/bin/manifest.yaml"
@@ -105,7 +106,7 @@ _info "Generating lib/cmake/GXF ..."
 
 # 4a. GXFConfig.cmake: expand the repo's own template (@PACKAGE_INIT@,
 #     @GXF_COMPONENTS@) exactly like configure_package_config_file() does
-GXF_COMPONENTS="core;logger;std;behavior_tree;cuda;test_cuda;multimedia;network;npp;serialization;sample;test_components;test_extension;grpc_ext;http;python_codelet;gxe"
+GXF_COMPONENTS="core;logger;std;behavior_tree;cuda;test_cuda;multimedia;network;npp;serialization;sample;test_components;test_extension;grpc_ext;http;python_codelet;ucx;pubsub;gxe"
 awk -v comp="$GXF_COMPONENTS" '
   /^@PACKAGE_INIT@$/ {
     print "get_filename_component(PACKAGE_PREFIX_DIR \"${CMAKE_CURRENT_LIST_DIR}/../../../\" ABSOLUTE)"
@@ -531,6 +532,8 @@ EXT_TABLE=(
   "grpc_ext|SHARED|GXF::core;GXF::std|lib/gxf/ipc/grpc/libgxf_grpc.so"
   "http|SHARED|GXF::core;GXF::std|lib/gxf/ipc/http/libgxf_http.so"
   "python_codelet|SHARED|GXF::core;GXF::std;CUDA::cudart|lib/gxf/python_codelet/libgxf_python_codelet.so"
+  "ucx|SHARED|GXF::multimedia;GXF::serialization;GXF::std;ucx::ucp;ucx::ucs|lib/gxf/ucx/libgxf_ucx.so"
+  "pubsub|SHARED|GXF::common;GXF::core;GXF::std;CUDA::cudart|lib/gxf/pubsub/libgxf_pubsub.so"
 )
 
 {

@@ -201,6 +201,8 @@ ucs_memory_type_t ucx_mem_type(MemoryStorageType gxf_mem_type) {
         return ucs_memory_type::UCS_MEMORY_TYPE_CUDA;
     case MemoryStorageType::kSystem:
         return ucs_memory_type::UCS_MEMORY_TYPE_HOST;
+    case MemoryStorageType::kCudaManaged:
+        return ucs_memory_type::UCS_MEMORY_TYPE_CUDA_MANAGED;
     }
     return ucs_memory_type::UCS_MEMORY_TYPE_HOST;
 }

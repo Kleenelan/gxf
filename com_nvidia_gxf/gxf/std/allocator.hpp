@@ -28,7 +28,8 @@ namespace gxf {
 enum struct MemoryStorageType {
   kHost = 0,    // Host Pinned Memory
   kDevice = 1,  // Cuda Device Memory
-  kSystem = 2   // Heap Memory
+  kSystem = 2,  // Heap Memory
+  kCudaManaged = 3  // Cuda Managed Memory
 };
 
 // Custom parameter parser for MemoryStorageType
@@ -46,6 +47,9 @@ struct ParameterParser<MemoryStorageType> {
     }
     if (strcmp(value.c_str(), "System") == 0) {
       return MemoryStorageType::kSystem;
+    }
+    if (strcmp(value.c_str(), "Managed") == 0) {
+      return MemoryStorageType::kCudaManaged;
     }
     return Unexpected{GXF_ARGUMENT_OUT_OF_RANGE};
   }
@@ -67,6 +71,10 @@ struct ParameterWrapper<MemoryStorageType> {
       }
       case MemoryStorageType::kSystem: {
         node = std::string("System");
+        break;
+      }
+      case MemoryStorageType::kCudaManaged: {
+        node = std::string("Managed");
         break;
       }
       default:

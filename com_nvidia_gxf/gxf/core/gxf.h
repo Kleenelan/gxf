@@ -112,6 +112,23 @@ typedef enum {
   GXF_IPC_CONNECTION_FAILURE,
   GXF_IPC_CALL_FAILURE,
   GXF_IPC_SERVICE_NOT_FOUND,
+
+  // -- Pub/Sub error codes (backported from GXF 5.7.1 for holoscan-sdk
+  //    compatibility; see gxf/pubsub, which is a stub in this 4.1-based tree) --
+  // Transport-level delivery errors
+  GXF_PUBSUB_SEND_TIMEOUT,             ///< Transport send() timed out (e.g. DDS RETCODE_TIMEOUT)
+  GXF_PUBSUB_QUEUE_FULL,               ///< Transport send queue/buffer full; backpressure needed
+  GXF_PUBSUB_NO_SUBSCRIBERS,           ///< No subscribers matched for this topic or GID
+  // Serialization / deserialization errors
+  GXF_PUBSUB_SERIALIZATION_FAILED,     ///< Entity serialization or deserialization failed
+  // Discovery errors
+  GXF_PUBSUB_DISCOVERY_FAILED,         ///< Discovery announce, lookup, or connection failed
+  // QoS errors
+  GXF_PUBSUB_QOS_INCOMPATIBLE,         ///< QoS profile mismatch between publisher and subscriber
+  // Native-buffer errors
+  GXF_PUBSUB_DESCRIPTOR_OPEN_FAIL,     ///< CUDA IPC handle could not be opened (source may have freed memory)
+  GXF_PUBSUB_DESCRIPTOR_EXPIRED,       ///< Descriptor TTL expired before subscriber imported it
+  GXF_PUBSUB_NATIVE_BUFFER_INELIGIBLE, ///< kRequired policy but preflight check failed
 } gxf_result_t;
 
 /// @brief Checks if a result code is GXF_SUCCESS or not

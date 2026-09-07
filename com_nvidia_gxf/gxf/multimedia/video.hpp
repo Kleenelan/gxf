@@ -868,6 +868,11 @@ class VideoBuffer {
   // Raw pointer to the first byte of the video frame
   byte* pointer() const { return memory_buffer_.pointer(); }
 
+  // Access the memory buffer (allows setting stream for stream-aware deallocation;
+  // note: setStream() is a no-op in this 4.1-based runtime, see memory_buffer.hpp)
+  MemoryBuffer& memory_buffer() { return memory_buffer_; }
+  const MemoryBuffer& memory_buffer() const { return memory_buffer_; }
+
   // Resizes the video frame and allocates the corresponding memory with the allocator provided
   // Any data previously stored in the frame would be freed
   Expected<void> resizeCustom(VideoBufferInfo buffer_info, uint64_t size,

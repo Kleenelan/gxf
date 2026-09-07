@@ -27,11 +27,23 @@ namespace gxf {
 // Interface for receiving entities.
 class Receiver : public Queue {
  public:
+  // Backported from GXF 5.7.1 (coherent front/back queue snapshot).
+  struct StageSizeSnapshot {
+    size_t main_stage = 0;
+    size_t back_stage = 0;
+
+    size_t total() const { return main_stage + back_stage; }
+  };
+
   // Receives the next entity from the main stage.
   virtual gxf_result_t receive_abi(gxf_uid_t* uid) = 0;
 
   // The total number of entities which have recently arrived but are not yet on the main stage.
   virtual size_t back_size_abi() = 0;
+
+  // Returns a coherent front/back queue snapshot. The default implementation
+  // reports an empty snapshot (backport stub for GXF 5.7.1 compatibility).
+  virtual StageSizeSnapshot stage_sizes_abi();
 
   // Peeks into back stage
   virtual gxf_result_t peek_back_abi(gxf_uid_t* uid, int32_t index) = 0;
@@ -46,6 +58,8 @@ class Receiver : public Queue {
   Expected<Entity> receive();
 
   size_t back_size();
+
+  StageSizeSnapshot stage_sizes();
 
   Expected<void> sync();
 

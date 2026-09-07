@@ -47,6 +47,20 @@ gxf_result_t UcxContext::registerInterface(Registrar* registrar) {
   return gxf::ToResultCode(result);
 }
 
+// GXF 5.7.1 compatibility stub: records the shutdown request and returns
+// success; the actual teardown still happens in deinitialize() as before
+// (no graceful drain of pending UCX requests in this 4.1-based build).
+gxf_result_t UcxContext::initiate_shutdown() {
+  const bool already = shutting_down_.exchange(true);
+  if (!already) {
+    GXF_LOG_INFO(
+        "UcxContext (cid: %ld): shutdown initiated (compatibility stub; pending UCX "
+        "requests are not drained gracefully in this GXF 4.1-based build)",
+        cid());
+  }
+  return GXF_SUCCESS;
+}
+
 gxf_result_t UcxContext::initialize() {
   if (cpu_data_only_.get()) {
     GXF_LOG_INFO(

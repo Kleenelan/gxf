@@ -66,6 +66,13 @@ class MemoryBuffer {
 
   virtual ~MemoryBuffer() { freeBuffer(); }
 
+  // GXF 5.7.1 compatibility stub: upstream, setStream() records the CUDA stream
+  // that will operate on this buffer so the allocator can defer the free until
+  // the stream completes. This 4.1-based runtime has no stream-aware deferred
+  // deallocation, so this is intentionally a no-op (memory is freed immediately
+  // upon release, exactly as GXF 4.1 always behaved).
+  void setStream(void* stream) { (void)stream; }
+
   Expected<void> resize(Handle<Allocator> allocator, uint64_t size,
                          MemoryStorageType storage_type) {
     const auto result = freeBuffer();

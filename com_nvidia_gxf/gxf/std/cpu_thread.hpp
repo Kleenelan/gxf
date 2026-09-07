@@ -23,6 +23,62 @@
 namespace nvidia {
 namespace gxf {
 
+// Real-time scheduling policies supported by POSIX and Linux kernel
+// (backported from GXF 5.1 for holoscan-sdk compatibility; the scheduling
+// parameters themselves are not implemented by this 4.1-based runtime)
+enum class SchedulingPolicy : int32_t {
+  kFirstInFirstOut = 1,  // SCHED_FIFO supported by POSIX and Linux kernel
+  kRoundRobin = 2,  // SCHED_RR supported by POSIX and Linux kernel
+  kDeadline = 6  // SCHED_DEADLINE supported by Linux kernel
+};
+
+// Custom parameter parser for SchedulingPolicy
+template <>
+struct ParameterParser<SchedulingPolicy> {
+  static Expected<SchedulingPolicy> Parse(gxf_context_t context, gxf_uid_t component_uid,
+                                         const char* key, const YAML::Node& node,
+                                         const std::string& prefix) {
+    const std::string value = node.as<std::string>();
+    if (strcmp(value.c_str(), "SCHED_FIFO") == 0) {
+      return SchedulingPolicy::kFirstInFirstOut;
+    }
+    if (strcmp(value.c_str(), "SCHED_RR") == 0) {
+      return SchedulingPolicy::kRoundRobin;
+    }
+    if (strcmp(value.c_str(), "SCHED_DEADLINE") == 0) {
+      return SchedulingPolicy::kDeadline;
+    }
+    GXF_LOG_ERROR("Invalid scheduling policy: %s", value.c_str());
+    return Unexpected{GXF_ARGUMENT_OUT_OF_RANGE};
+  }
+};
+
+// Custom parameter wrapper for SchedulingPolicy
+template<>
+struct ParameterWrapper<SchedulingPolicy> {
+  static Expected<YAML::Node> Wrap(gxf_context_t context, const SchedulingPolicy& value) {
+    YAML::Node node(YAML::NodeType::Scalar);
+    switch (value) {
+      case SchedulingPolicy::kFirstInFirstOut: {
+        node = std::string("SCHED_FIFO");
+        break;
+      }
+      case SchedulingPolicy::kRoundRobin: {
+        node = std::string("SCHED_RR");
+        break;
+      }
+      case SchedulingPolicy::kDeadline: {
+        node = std::string("SCHED_DEADLINE");
+        break;
+      }
+      default:
+        GXF_LOG_ERROR("Invalid scheduling policy: %d", static_cast<int32_t>(value));
+        return Unexpected{GXF_PARAMETER_OUT_OF_RANGE};
+    }
+    return node;
+  }
+};
+
 class CPUThread : public Component {
  public:
   gxf_result_t registerInterface(Registrar* registrar) override;
@@ -34,6 +90,16 @@ class CPUThread : public Component {
  private:
   // Keep track of whether or not the component should be pinned to a worker thread
   Parameter<bool> pin_entity_;
+
+  // GXF 5.1 compatibility parameters: accepted in registerInterface() so that
+  // graphs configuring them load successfully, but intentionally not applied
+  // (no core pinning / real-time scheduling in this 4.1-based runtime).
+  Parameter<std::vector<uint32_t>> pin_cores_;
+  Parameter<SchedulingPolicy> sched_policy_;
+  Parameter<uint32_t> sched_priority_;
+  Parameter<uint64_t> sched_runtime_;
+  Parameter<uint64_t> sched_deadline_;
+  Parameter<uint64_t> sched_period_;
 };
 
 }  // namespace gxf

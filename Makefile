@@ -37,6 +37,7 @@ GXF_PROTO_DIR   ?= $(GXF_DEPS_DIR)/proto
 CUDA_HOME       ?= /usr/local/cuda
 CUDA_LIB64      ?= $(CUDA_HOME)/lib64
 DEVCC           ?= $(CUDA_HOME)/bin/nvcc
+UCX_HOME        ?= /opt/ucx-1.18.0
 GXF_PYTHON      ?= $(shell python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
 PYTHON_INCLUDE  ?= $(shell python$(GXF_PYTHON) -c 'import sysconfig; print(sysconfig.get_paths()["include"])' 2>/dev/null)
 PYTHON_LIBDIR   ?= $(shell python$(GXF_PYTHON) -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR") or "")' 2>/dev/null)
@@ -68,6 +69,7 @@ INCLUDES    := -I$(WS) \
                -isystem $(GXF_DEPS_PREFIX)/include \
                -isystem $(GXF_DEPS_PREFIX)/include/breakpad \
                -isystem $(CUDA_HOME)/include \
+               -isystem $(UCX_HOME)/include \
                -isystem $(PYTHON_INCLUDE)
 # Boost headers: skip the flag when using system boost in /usr/include —
 # "-isystem /usr/include" reorders the system header chain and breaks gcc's
@@ -102,6 +104,9 @@ CUDA_DRV_LINK := -L$(CUDA_HOME)/targets/x86_64-linux/lib/stubs \
                  -L$(CUDA_HOME)/targets/x86_64-linux/lib \
                  -lcuda -l:libnvToolsExt.so.1 \
                  -Wl,-rpath,$(CUDA_HOME)/targets/x86_64-linux/lib
+UCX_LINK    := -L$(UCX_HOME)/lib \
+               -Wl,--no-as-needed,-l:libucp.so,-l:libuct.so,-l:libucs.so,--as-needed \
+               -Wl,-rpath,$(UCX_HOME)/lib
 PYTHON_LINK := -L$(PYTHON_LIBDIR) -l$(PYTHON_LIB) -Wl,-rpath,$(PYTHON_LIBDIR)
 BOOST_LINK  := -L$(BOOST_LIBRARY_DIR) -lboost_system -lboost_thread -lboost_chrono \
                -lboost_atomic -lboost_regex -lboost_date_time -lboost_filesystem -lboost_random
@@ -155,7 +160,8 @@ EXT_BASE_LO := $(L)/gxf/core/libgxf.lo $(CORE4_LO) $(STD_RT_LO) \
                $(L)/gxf/std/libdefault_extension.lo $(COMMON_LO) $(LOGGER_LO)
 # --- full gxf/std (transitive closure of //gxf/std) ---
 STD_FULL_NAMES := async_buffer_receiver async_buffer_transmitter block_memory_pool \
-             broadcast double_buffer_receiver double_buffer_transmitter \
+             broadcast cuda_green_context cuda_green_context_pool \
+             double_buffer_receiver double_buffer_transmitter \
              epoch_scheduler gather graph_driver graph_worker \
              graph_driver_worker_common greedy_scheduler metric \
              multi_thread_scheduler event_based_scheduler synchronization \
@@ -193,6 +199,16 @@ SAMPLE_LO   := $(addprefix $(L)/gxf/sample/lib,$(addsuffix .lo,\
 TESTCOMP_LO := $(addprefix $(L)/gxf/test/components/lib,$(addsuffix .lo,\
              entity_monitor mock_allocator mock_codelet mock_failure \
              mock_receiver mock_transmitter tensor_comparator tensor_generator))
+# --- gxf/ucx libraries ---
+UCX_NAMES   := ucx_common ucx_component_serializer ucx_context ucx_entity_serializer \
+             ucx_receiver ucx_serialization_buffer ucx_transmitter
+UCX_LO      := $(addprefix $(L)/gxf/ucx/lib,$(addsuffix .lo,$(UCX_NAMES)))
+# --- gxf/pubsub libraries ---
+PUBSUB_NAMES := gid endpoint_info qos_profile qos_compatibility topic_registry \
+             pubsub_context pubsub_transmitter pubsub_receiver \
+             in_memory_discovery in_memory_transport in_memory_serializer \
+             in_memory_pubsub_context cuda_ipc_descriptor cuda_ipc_eligibility
+PUBSUB_LO   := $(addprefix $(L)/gxf/pubsub/lib,$(addsuffix .lo,$(PUBSUB_NAMES)))
 
 # ---------------------------------------------------------------------------
 # 3. Artifact list
@@ -212,6 +228,8 @@ SO_TEST      := $(L)/gxf/test/extensions/libgxf_test.so
 SO_GRPC      := $(L)/gxf/ipc/grpc/libgxf_grpc.so
 SO_HTTP      := $(L)/gxf/ipc/http/libgxf_http.so
 SO_PYCODELET := $(L)/gxf/python_codelet/libgxf_python_codelet.so
+SO_UCX       := $(L)/gxf/ucx/libgxf_ucx.so
+SO_PUBSUB    := $(L)/gxf/pubsub/libgxf_pubsub.so
 GXE          := $(L)/gxf/gxe/gxe
 
 PYBINDS      := $(L)/gxf/core/core_pybind.so \
@@ -223,7 +241,7 @@ PYBINDS      := $(L)/gxf/core/core_pybind.so \
 
 EXT_SOS      := $(SO_LOGGER) $(SO_CORE) $(SO_STD) $(SO_SAMPLE) $(SO_BT) $(SO_SER) \
                $(SO_NET) $(SO_MM) $(SO_NPP) $(SO_CUDA) $(SO_TESTCUDA) $(SO_TEST) \
-               $(SO_GRPC) $(SO_HTTP) $(SO_PYCODELET)
+               $(SO_GRPC) $(SO_HTTP) $(SO_PYCODELET) $(SO_UCX) $(SO_PUBSUB)
 
 # Static archives required by the release packaging manifest (same .lo
 # names as in bazel-bin)
@@ -241,7 +259,8 @@ ARTIFACTS    := $(EXT_SOS) $(PYBINDS) $(GXE) $(STATIC_LOS)
 # ---------------------------------------------------------------------------
 .PHONY: all help env-check test package dist clean \
         core std gxe logger sample behavior_tree serialization network \
-        multimedia npp cuda test_cuda test_ext grpc http python_codelet pybinds
+        multimedia npp cuda test_cuda test_ext grpc http python_codelet pybinds \
+        ucx pubsub
 
 all: env-check $(ARTIFACTS) $(BUILD)/manifest.yaml
 	@echo "==> Build finished. Artifacts at $(BUILD)/gxf/"
@@ -250,8 +269,8 @@ help:
 	@echo "Usage: source ./setup_env.sh && make -j\$$(nproc)"
 	@echo "Targets: all (default), core, std, gxe, logger, sample, behavior_tree,"
 	@echo "         serialization, network, multimedia, npp, cuda, test_cuda,"
-	@echo "         test_ext, grpc, http, python_codelet, pybinds, test, package,"
-	@echo "         dist, clean"
+	@echo "         test_ext, grpc, http, python_codelet, pybinds, ucx, pubsub,"
+	@echo "         test, package, dist, clean"
 
 env-check:
 	@test -f "$(YAML_CPP_A)" || { echo "ERROR: $(YAML_CPP_A) not found."; \
@@ -259,6 +278,8 @@ env-check:
 	@test -f "$(GRPC_CPP_PLUGIN)" || { echo "ERROR: gRPC toolchain not found in $(GXF_DEPS_PREFIX)."; \
 	  echo "Run 'source ./setup_env.sh' first."; exit 1; }
 	@test -d "$(CUDA_HOME)/include" || { echo "ERROR: CUDA_HOME=$(CUDA_HOME) invalid."; exit 1; }
+	@test -d "$(UCX_HOME)/include" -a -d "$(UCX_HOME)/lib" || { \
+	  echo "ERROR: UCX_HOME=$(UCX_HOME) invalid (needs include/ and lib/)."; exit 1; }
 	@test -f "$(PYTHON_INCLUDE)/Python.h" || { echo "ERROR: Python headers not found ($(PYTHON_INCLUDE))."; exit 1; }
 	@ls $(BOOST_LIBRARY_DIR)/libboost_system.* >/dev/null 2>&1 || { \
 	  echo "ERROR: boost libraries not found in BOOST_LIBRARY_DIR=$(BOOST_LIBRARY_DIR)."; \
@@ -329,7 +350,8 @@ $(eval $(call LO_RULE,$(L)/gxf/core/libcore_pybind_pybind.lo,$(OBJ)/gxf/core/bin
 # --- gxf/std (generic pattern for single-source libraries) ---
 STD_SINGLE := allocator async_buffer_receiver async_buffer_transmitter \
   block_memory_pool broadcast clock codelet component_allocator component_factory \
-  connection cpu_thread default_extension dlpack_utils double_buffer_receiver \
+  connection cpu_thread cuda_green_context cuda_green_context_pool \
+  default_extension dlpack_utils double_buffer_receiver \
   double_buffer_transmitter entity_executor entity_resource_helper entity_warden \
   epoch_scheduler event_based_scheduler extension extension_loader gather \
   graph_driver graph_driver_worker_common graph_worker greedy_scheduler \
@@ -393,6 +415,16 @@ $(eval $(call LO_RULE,$(L)/gxf/ipc/http/libhttp_server.lo,$(OBJ)/gxf/ipc/http/ht
 $(eval $(call LO_RULE,$(L)/gxf/python_codelet/libpython_codelet_src.lo,$(OBJ)/gxf/python_codelet/python_codelet.o))
 $(eval $(call LO_RULE,$(L)/gxf/python_codelet/libpy_codelet.lo,$(OBJ)/gxf/python_codelet/py_codelet.o))
 $(eval $(call LO_RULE,$(L)/gxf/python_codelet/libpycodelet_pybind.lo,$(OBJ)/gxf/python_codelet/bindings/pycodelet.o))
+# --- gxf/ucx ---
+$(eval $(call LO_RULE,$(L)/gxf/ucx/libucx_src.lo,$(OBJ)/gxf/ucx/ucx_extension.o))
+$(foreach n,$(UCX_NAMES),$(eval $(call LO_RULE,$(L)/gxf/ucx/lib$(n).lo,$(OBJ)/gxf/ucx/$(n).o)))
+# --- gxf/pubsub ---
+$(eval $(call LO_RULE,$(L)/gxf/pubsub/libpubsub_src.lo,$(OBJ)/gxf/pubsub/pubsub_extension.o))
+$(foreach n,$(PUBSUB_NAMES),$(eval $(call LO_RULE,$(L)/gxf/pubsub/lib$(n).lo,$(OBJ)/gxf/pubsub/$(n).o)))
+
+# UCX sources: same warning suppressions as the bazel BUILD file
+$(addprefix $(OBJ)/gxf/ucx/,$(addsuffix .o,$(UCX_NAMES) ucx_extension)): \
+  EXTRA_CXXFLAGS := -Wno-unknown-pragmas -Wno-deprecated-declarations
 
 # Special compile options for individual translation units (same as the
 # bazel BUILD files)
@@ -494,6 +526,16 @@ $(SO_PYCODELET): $(L)/gxf/python_codelet/libpython_codelet_src.lo \
 	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(CUDART_LINK) $(PYTHON_LINK) \
 	  $(RPATH_ORIGIN) -pthread -ldl)
 
+$(SO_UCX): $(L)/gxf/ucx/libucx_src.lo $(UCX_LO) $(SER_LO) \
+           $(L)/gxf/multimedia/libaudio.lo $(L)/gxf/multimedia/libvideo.lo \
+           $(STD_FULL_LO) $(YAML_CPP_A)
+	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(UCX_LINK) $(CUDART_LINK) \
+	  $(RPATH_ORIGIN) -pthread -ldl)
+
+$(SO_PUBSUB): $(L)/gxf/pubsub/libpubsub_src.lo $(PUBSUB_LO) $(STD_FULL_LO) $(YAML_CPP_A)
+	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(CUDART_LINK) \
+	  $(RPATH_ORIGIN) -pthread -ldl)
+
 # --- gxe executable ---
 $(GXE): $(OBJ)/gxf/gxe/gxe.o $(COMMON_LO) $(LOGGER_LO) $(SO_CORE) \
         $(YAML_CPP_A) $(GFLAGS_A) $(BREAKPAD_A)
@@ -540,7 +582,7 @@ $(L)/gxf/python_codelet/pycodelet.so: $(L)/gxf/python_codelet/libpycodelet_pybin
 # 6. manifest / test / package
 # ---------------------------------------------------------------------------
 # Equivalent of bazel run: gxe is executed under $(WS) and the manifest uses
-# relative paths (the unbuilt stream/ucx/rmm extensions are pruned, same as
+# relative paths (the unbuilt stream/rmm extensions are pruned, same as
 # the install logic in build.sh)
 $(BUILD)/manifest.yaml: $(EXT_SOS)
 	@echo "extensions:" > $@
@@ -548,7 +590,8 @@ $(BUILD)/manifest.yaml: $(EXT_SOS)
 	    gxf/cuda/libgxf_cuda.so gxf/cuda/tests/libgxf_test_cuda.so \
 	    gxf/npp/libgxf_npp.so gxf/serialization/libgxf_serialization.so \
 	    gxf/network/libgxf_network.so gxf/multimedia/libgxf_multimedia.so \
-	    gxf/test/extensions/libgxf_test.so gxf/behavior_tree/libgxf_behavior_tree.so; do \
+	    gxf/test/extensions/libgxf_test.so gxf/behavior_tree/libgxf_behavior_tree.so \
+	    gxf/ucx/libgxf_ucx.so gxf/pubsub/libgxf_pubsub.so; do \
 	  echo "- bin-make/$$e" >> $@; done
 
 # Per-module convenience targets
@@ -568,6 +611,8 @@ test_ext: $(SO_TEST)
 grpc: $(SO_GRPC)
 http: $(SO_HTTP)
 python_codelet: $(SO_PYCODELET) $(L)/gxf/python_codelet/pycodelet.so
+ucx: $(SO_UCX)
+pubsub: $(SO_PUBSUB)
 pybinds: $(PYBINDS)
 
 test: all

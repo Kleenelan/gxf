@@ -17,6 +17,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "gxf/std/connection.hpp"
 #include "gxf/std/controller.hpp"
 #include "gxf/std/cpu_thread.hpp"
+#include "gxf/std/cuda_green_context.hpp"
+#include "gxf/std/cuda_green_context_pool.hpp"
 #include "gxf/std/double_buffer_receiver.hpp"
 #include "gxf/std/double_buffer_transmitter.hpp"
 #include "gxf/std/entity_executor.hpp"
@@ -135,6 +137,14 @@ GXF_EXT_FACTORY_BEGIN()
   GXF_EXT_FACTORY_ADD(0x2036939fa32a43ee, 0x83f8826576d8f170,
                       nvidia::gxf::GPUDevice, nvidia::gxf::ResourceBase,
                       "A GPU Resource for codelet workloads");
+  GXF_EXT_FACTORY_ADD(0x4a7c9e2b1d3f5068, 0xb8d6a4c2e0f19273,
+                      nvidia::gxf::CudaGreenContextPool, nvidia::gxf::Component,
+                      "A pool of CUDA Green Contexts (compatibility stub: no green contexts "
+                      "are created in this GXF 4.1-based build)");
+  GXF_EXT_FACTORY_ADD(0x5b8dae3f2c4e6179, 0xc9e7b5d3f1a2b384,
+                      nvidia::gxf::CudaGreenContext, nvidia::gxf::Component,
+                      "Holds a CUDA Green Context (compatibility stub: no green context is "
+                      "held in this GXF 4.1-based build)");
   GXF_EXT_FACTORY_ADD(0x3cdd82d023264867, 0x8de2d565dbe28e03,
                       nvidia::gxf::Allocator, nvidia::gxf::Component,
                       "Provides allocation and deallocation of memory");

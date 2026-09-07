@@ -21,6 +21,7 @@
 #include <sys/eventfd.h>
 #include <ucp/api/ucp.h>
 #include <unistd.h>
+#include <atomic>
 #include <list>
 #include <memory>
 #include <queue>
@@ -82,6 +83,13 @@ class UcxContext : public NetworkContext {
     Expected<void> addRoutes(const Entity& entity) override;
     Expected<void> removeRoutes(const Entity& entity) override;
 
+    // GXF 5.7.1 compatibility stub: upstream, initiate_shutdown() starts a
+    // graceful UCX shutdown (drain pending requests, close endpoints). This
+    // 4.1-based implementation only records the flag; teardown proceeds as
+    // before in deinitialize().
+    gxf_result_t initiate_shutdown();
+    bool is_shutting_down() const { return shutting_down_.load(); }
+
  private:
     gxf_result_t init_context();
     gxf_result_t init_tx(Handle<UcxTransmitter> tx);
@@ -134,6 +142,8 @@ class UcxContext : public NetworkContext {
     bool areTransmittersDone = false;
     int epoll_fd_;
     int efd_signal_;
+    // Set by initiate_shutdown() (GXF 5.7.1 compatibility stub)
+    std::atomic<bool> shutting_down_{false};
 };
 
 }  // namespace gxf

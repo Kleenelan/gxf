@@ -44,6 +44,11 @@ class Router {
   // Sets the network context to be used by network router
   virtual Expected<void> addNetworkContext(Handle<NetworkContext> context) = 0;
 
+  // Used to skip calling syncInbox/syncOutbox/wait on network-dependent routers
+  // when no network context is configured. (backported from GXF 5.7.1;
+  // default: no network context required)
+  virtual bool requiresNetworkContext() const { return false; }
+
  protected:
   Handle<Clock> clock_;
 };
