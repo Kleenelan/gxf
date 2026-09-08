@@ -434,7 +434,11 @@ class Entity {
       return Unexpected{code};
     }
     FixedVector<Handle<T>, N> components;
-    for (int offset = 0; static_cast<size_t>(offset) < N; offset++) {
+    // Note: GxfComponentFind updates 'offset' to the absolute component index of the match.
+    // The loop condition must use components.size() (not offset) to avoid early termination
+    // when non-matching components cause offset to grow faster than the result count.
+    // (backported fix from GXF 5.7.1)
+    for (int offset = 0; components.size() < N; offset++) {
       gxf_uid_t cid;
       const gxf_result_t code = GxfComponentFind(c_context, c_eid, tid, nullptr, &offset, &cid);
       if (code != GXF_SUCCESS) {
@@ -504,7 +508,11 @@ class Entity {
     }
     FixedVector<Handle<T>> components;
     components.reserve(N);
-    for (int offset = 0; static_cast<size_t>(offset) < N; offset++) {
+    // Note: GxfComponentFind updates 'offset' to the absolute component index of the match.
+    // The loop condition must use components.size() (not offset) to avoid early termination
+    // when non-matching components cause offset to grow faster than the result count.
+    // (backported fix from GXF 5.7.1)
+    for (int offset = 0; components.size() < N; offset++) {
       gxf_uid_t cid;
       const gxf_result_t code = GxfComponentFind(c_context, c_eid, tid, nullptr, &offset, &cid);
       if (code != GXF_SUCCESS) {

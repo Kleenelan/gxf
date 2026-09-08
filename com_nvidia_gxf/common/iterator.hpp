@@ -67,6 +67,18 @@ class RandomAccessIterator : public std::iterator<std::random_access_iterator_ta
     *this += start;
   }
 
+  // Heterogeneous conversion constructor: allows implicit conversion from
+  // RandomAccessIterator<Container, T> to RandomAccessIterator<const Container,
+  // const T> (iterator -> const_iterator). (backported from GXF 5.7.1)
+  template <class OContainer,
+            typename std::enable_if<
+                std::is_same<TContainer, const OContainer>::value &&
+                std::is_same<TValue, const typename OContainer::value_type>::value, int>::type = 0>
+  constexpr RandomAccessIterator(const RandomAccessIterator<OContainer>& other)
+      : container_{other.container_}, index_{0} {
+    *this += other.index_;
+  }
+
   constexpr RandomAccessIterator(const RandomAccessIterator& other) = default;
   constexpr RandomAccessIterator(RandomAccessIterator&& other) = default;
   constexpr RandomAccessIterator& operator=(const RandomAccessIterator& other) = default;
@@ -150,6 +162,11 @@ class RandomAccessIterator : public std::iterator<std::random_access_iterator_ta
   TContainer* container_;
   /// Iterator index
   difference_type index_;
+
+  // Grants the heterogeneous conversion constructor access to the source
+  // specialization's private members (iterator -> const_iterator).
+  // (backported from GXF 5.7.1)
+  friend class RandomAccessIterator<const TContainer, const typename TContainer::value_type>;
 };
 
 /// Constant Random-access iterator

@@ -185,7 +185,7 @@ inline gxf_tid_t GxfTidNull() {
 /// @param tid A GXF tid
 /// @return Returns 1 if 'tid' is the null tid; and 0 otherwise.
 inline uint32_t GxfTidIsNull(gxf_tid_t tid) {
-  return (tid.hash1 == 0UL && tid.hash2 == 0UL) ? 1 : 0;
+  return (tid.hash1 == 0ULL && tid.hash2 == 0ULL) ? 1 : 0;
 }
 
 // --  Context  ------------------------------------------------------------------------------------

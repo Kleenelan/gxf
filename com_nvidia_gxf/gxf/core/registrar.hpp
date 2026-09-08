@@ -129,6 +129,15 @@ class Registrar {
       if (!result) { return ForwardError(result); }
     }
 
+    // NOTE: GXF 5.7.1 skips the first-pass parameter binding here
+    // (`if (cid == 0) { return Success; }`). That optimization is NOT safe to
+    // port to this 4.1 tree: 4.1 components (e.g.
+    // EntityCountFailureRepeatController) call Parameter<T>::set() inside
+    // first-pass registerInterface() and rely on the temporary-storage backend
+    // that binding creates; skipping it makes them panic at extension load.
+    // We therefore keep 4.1's both-pass binding behavior (deviation from
+    // 5.7.1, behaviorally equivalent for consumers).
+
     if (parameter_storage == nullptr) { return Unexpected{GXF_CONTEXT_INVALID}; }
     return parameter_storage->registerParameter<T>(
         &parameter, cid, parameter_info.key, parameter_info.headline, parameter_info.description,

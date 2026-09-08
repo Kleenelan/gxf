@@ -190,16 +190,22 @@ class FixedVectorBase {
   }
 
   // Insert elements from another fixed vector object to the specified index
-  constexpr Expected<void> insert(iterator index, iterator start, iterator end) {
-        size_t count = static_cast<size_t>(std::distance(start, end));
+  constexpr Expected<void> insert(iterator index, const_iterator start, const_iterator end) {
+        ssize_t count = static_cast<ssize_t>(std::distance(start, end));
         size_t pos = static_cast<size_t>(std::distance(begin(), index));
-        if ((pos > size_) || (pos + count > capacity_) || (count < 0)) {
+        if ((pos > size_) || (size_ + count > capacity_) || (count < 0)) {
             return Unexpected<Error>{Error::kArgumentOutOfRange};
         }
 
         auto maybe_value = *start;
         if (maybe_value) {
-          T* ptr = &(*maybe_value);
+          const T* ptr = &(*maybe_value);
+          // Shift existing elements to make room first (true insertion; the
+          // previous implementation overwrote them). (backported fix from
+          // GXF 5.7.1)
+          if (pos < size_) {
+            ArrayCopyConstruct(BytePointer(data_ + pos + count), &data_[pos], size_ - pos);
+          }
           ArrayCopyConstruct(BytePointer(data_ + pos), ptr, count);
           size_ += count;
         } else {

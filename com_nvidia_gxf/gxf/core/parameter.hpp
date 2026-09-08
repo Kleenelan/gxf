@@ -99,13 +99,13 @@ class ParameterBackend : public ParameterBackendBase {
   bool isAvailable() const override { return value_.has_value(); }
 
   // Sets the parameter to the given value.
-  Expected<void> set(T value) {
+  Expected<void> set(const T& value) {
     // Make sure that the new value passes the validator
     if (validator_&& !validator_(value)) { return Unexpected{GXF_PARAMETER_OUT_OF_RANGE}; }
     // Don't allow modification of a parameter which is currently immutable
     if (isImmutable()) { return Unexpected{GXF_PARAMETER_CAN_NOT_MODIFY_CONSTANT}; }
     // Update the parameter value
-    value_ = std::move(value);
+    value_ = value;
     return Success;
   }
 
@@ -245,13 +245,14 @@ class Parameter : public ParameterBase {
   }
 
   // Sets the parameter to the given value.
-  Expected<void> set(T value) {
-    GXF_ASSERT(backend_ != nullptr, "Parameter '%s' was not registered.", backend_->key());
+  Expected<void> set(const T& value) {
+    GXF_ASSERT(backend_ != nullptr, "Parameter of type '%s' was not registered.",
+               TypenameAsString<T>());
     const auto result = backend_->set(value);
     if (!result) {
       return result;
     }
-    value_ = std::move(value);
+    value_ = value;
     return Success;
   }
 
