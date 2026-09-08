@@ -19,6 +19,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include "gxf/core/component.hpp"
 #include "gxf/core/entity.hpp"
@@ -34,11 +35,16 @@ class ThreadPool : public ResourceBase {
  public:
   struct Thread {
     gxf_uid_t uid;
+    // CID of the CPUThread component which configures this worker thread.
+    // kUnspecifiedUid means no CPUThread configuration is associated.
+    gxf_uid_t cpu_thread_cid = kUnspecifiedUid;
     // Scalability: std::thread
   };
   gxf_result_t registerInterface(Registrar* registrar) override;
   gxf_result_t initialize() override;
   Expected<gxf_uid_t> addThread(gxf_uid_t uid);
+  Expected<gxf_uid_t> addThread(gxf_uid_t uid, gxf_uid_t cpu_thread_cid);
+  Expected<gxf_uid_t> addThread(gxf_uid_t uid, const std::vector<uint32_t>& pin_cores);
   const Expected<Thread> getThread(gxf_uid_t uid) const;
   const std::map<gxf_uid_t, Thread>& get() const;
   int64_t size() const;

@@ -1,0 +1,44 @@
+%YAML 1.2
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Probe for Step D2: verifies that a CPUThread configuration with pin_cores is
+# applied to the worker thread which executes a pinned entity.
+---
+dependencies:
+- extension: TestHelperExtension
+  uuid: 1b99ffeb-c250-4ced-8117-62ac05969a50
+  version: 2.6.0
+- extension: SampleExtension
+  uuid: a6ad78b6-1682-11ec-9621-0242ac130002
+  version: 1.6.0
+---
+name: worker
+components:
+- name: cpu_thread
+  type: nvidia::gxf::CPUThread
+  parameters:
+    pin_entity: true
+    pin_cores: [0]
+- name: thread_pool
+  type: nvidia::gxf::ThreadPool
+  parameters:
+    initial_size: 1
+- type: nvidia::gxf::test::ThreadAffinityChecker
+  parameters:
+    expected_cores: [0]
+- type: nvidia::gxf::CountSchedulingTerm
+  parameters:
+    count: 1
+---
+name: scheduler
+components:
+- name: clock
+  type: nvidia::gxf::RealtimeClock
+- type: nvidia::gxf::test::EntityMonitor
+- type: nvidia::gxf::MultiThreadScheduler
+  parameters:
+    clock: clock
+    worker_thread_number: 1
+    stop_on_deadlock: true
+---

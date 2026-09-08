@@ -59,6 +59,7 @@ class StreamOrderedAllocator : public CudaAllocator {
   Parameter<std::string> device_memory_max_size_;
 
   std::unordered_map<void*, size_t> pool_map_;
+  std::unordered_map<void*, size_t> managed_map_;
 
   AllocatorStage stage_{AllocatorStage::kUninitialized};
   std::mutex mutex_;

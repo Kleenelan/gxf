@@ -25,6 +25,7 @@
 #include "gxf/test/components/mock_transmitter.hpp"
 #include "gxf/test/components/tensor_comparator.hpp"
 #include "gxf/test/components/tensor_generator.hpp"
+#include "gxf/test/components/thread_affinity_checker.hpp"
 #include "gxf/test/extensions/test_helpers.hpp"
 #include "gxf/test/extensions/test_metric.hpp"
 #include "gxf/test/extensions/test_parameters.hpp"
@@ -153,6 +154,9 @@ GXF_EXT_FACTORY_BEGIN()
                     nvidia::gxf::test::MockCodelet, nvidia::gxf::Codelet,
                     "Mock generic codelet that receives message, execute, then transmit message");
   GXF_EXT_FACTORY_ADD(0xcd944caff32f46cc, 0xa8a744977a4805a6,
-                    nvidia::gxf::test::Frame, nvidia::gxf::Component,
-                    "Test frame that contains timestamp and frame index");
+                     nvidia::gxf::test::Frame, nvidia::gxf::Component,
+                     "Test frame that contains timestamp and frame index");
+  GXF_EXT_FACTORY_ADD(0x3f8e2c1a7b4d59e2, 0x9a6c8d5e1f3b7048,
+                     nvidia::gxf::test::ThreadAffinityChecker, nvidia::gxf::Codelet,
+                     "Verifies the worker thread has the expected CPU affinity");
   GXF_EXT_FACTORY_END()

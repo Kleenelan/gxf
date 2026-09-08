@@ -9,6 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 #include "gxf/std/multi_thread_scheduler.hpp"
 
+#include <pthread.h>
 #include <algorithm>
 #include <list>
 #include <memory>
@@ -19,6 +20,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "gxf/core/gxf.h"
 #include "gxf/core/registrar.hpp"
+#include "gxf/std/cpu_thread.hpp"
 #include "gxf/std/entity_executor.hpp"
 #include "gxf/std/entity_resource_helper.hpp"
 #include "gxf/std/gems/utils/time.hpp"
@@ -289,6 +291,13 @@ void MultiThreadScheduler::workerThreadEntrance(ThreadPool* pool, int64_t thread
   if (pool == nullptr) {
     GXF_LOG_ERROR("workerThreadEntrance has nullptr for arg ThreadPool*, exiting thread");
     return;
+  }
+
+  // Apply CPUThread affinity / scheduling configuration if this thread was
+  // created with an associated CPUThread component.
+  auto maybe_thread = pool->getThread(thread_number);
+  if (maybe_thread) {
+    ApplyCPUThreadConfiguration(context(), maybe_thread.value().cpu_thread_cid);
   }
   // Print thread param info
   std::string pool_name;

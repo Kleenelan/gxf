@@ -198,7 +198,8 @@ SAMPLE_LO   := $(addprefix $(L)/gxf/sample/lib,$(addsuffix .lo,\
 # --- gxf/test/components libraries (+ test helpers from module tests dirs) ---
 TESTCOMP_LO := $(addprefix $(L)/gxf/test/components/lib,$(addsuffix .lo,\
              entity_monitor mock_allocator mock_codelet mock_failure \
-             mock_receiver mock_transmitter tensor_comparator tensor_generator)) \
+             mock_receiver mock_transmitter tensor_comparator tensor_generator \
+             thread_affinity_checker)) \
              $(L)/gxf/network/tests/libtest_clock_sync_helpers.lo \
              $(L)/gxf/serialization/tests/libserialization_tester.lo
 # --- gxf/ucx libraries ---
@@ -410,7 +411,7 @@ $(foreach n,ping_rx ping_rx_async ping_tx ping_tx_async ping_batch_rx multi_ping
 # --- gxf/test ---
 $(eval $(call LO_RULE,$(L)/gxf/test/extensions/libtest_src.lo,$(OBJ)/gxf/test/extensions/test.o))
 $(foreach n,entity_monitor mock_allocator mock_codelet mock_failure mock_receiver \
-  mock_transmitter tensor_comparator tensor_generator,\
+  mock_transmitter tensor_comparator tensor_generator thread_affinity_checker,\
   $(eval $(call LO_RULE,$(L)/gxf/test/components/lib$(n).lo,$(OBJ)/gxf/test/components/$(n).o)))
 $(eval $(call LO_RULE,$(L)/gxf/network/tests/libtest_clock_sync_helpers.lo,$(OBJ)/gxf/network/tests/test_clock_sync_helpers.o))
 $(eval $(call LO_RULE,$(L)/gxf/serialization/tests/libserialization_tester.lo,$(OBJ)/gxf/serialization/tests/serialization_tester.o))

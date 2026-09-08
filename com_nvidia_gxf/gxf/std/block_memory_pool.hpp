@@ -47,7 +47,7 @@ class BlockMemoryPool : public Allocator {
 
   // Returns the storage type of the memory blocks
   MemoryStorageType storage_type() const {
-    return static_cast<MemoryStorageType>(storage_type_.get());
+    return storage_type_.get();
   }
 
   // Returns the total number of blocks
@@ -56,7 +56,7 @@ class BlockMemoryPool : public Allocator {
   }
 
  private:
-  Parameter<int32_t> storage_type_;
+  Parameter<MemoryStorageType> storage_type_;
   Parameter<uint64_t> block_size_;
   Parameter<uint64_t> num_blocks_;
   Resource<Handle<GPUDevice>> gpu_device_;

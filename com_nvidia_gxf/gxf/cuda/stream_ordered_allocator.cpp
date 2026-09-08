@@ -100,7 +100,7 @@ gxf_result_t StreamOrderedAllocator::initialize() {
 
 gxf_result_t StreamOrderedAllocator::deinitialize() {
   stage_ = AllocatorStage::kUninitialized;
-  if (!pool_map_.empty()) {
+  if (!pool_map_.empty() || !managed_map_.empty()) {
     GXF_LOG_WARNING("StreamOrderedAllocator pool %s still has unreleased memory", name());
   }
   CHECK_CUDA_ERROR_RESULT(cudaStreamSynchronize(stream_), "Failed to synchronize cuda stream");
@@ -143,15 +143,9 @@ gxf_result_t StreamOrderedAllocator::is_available_abi(uint64_t size) {
     return GXF_INVALID_LIFECYCLE_STAGE;
   }
 
-  size_t usedMemory, reservedMemory;
-  CHECK_CUDA_ERROR_RESULT(
-      cudaMemPoolGetAttribute(memory_pool_, cudaMemPoolAttrUsedMemCurrent, &usedMemory),
-      "Failed to get total used memory size from the pool.");
-  CHECK_CUDA_ERROR_RESULT(
-      cudaMemPoolGetAttribute(memory_pool_, cudaMemPoolAttrReservedMemHigh, &reservedMemory),
-      "Failed to get reserved memory size from the pool.");
-  const size_t availableBytes = reservedMemory - usedMemory;
-  return size <= availableBytes ? GXF_SUCCESS : GXF_FAILURE;
+  // Managed memory is allocated on demand via cudaMallocManaged and is not
+  // subject to the device memory pool limit. Treat it as always available.
+  return GXF_SUCCESS;
 }
 
 gxf_result_t StreamOrderedAllocator::allocate_abi(uint64_t size, int32_t type, void** pointer) {
@@ -174,8 +168,17 @@ gxf_result_t StreamOrderedAllocator::allocate_abi(uint64_t size, int32_t type, v
     size = 1;
   }
 
+  if (type == static_cast<int32_t>(MemoryStorageType::kCudaManaged)) {
+    // Managed memory is not stream-ordered and is not allocated from the pool.
+    // Use cudaMallocManaged directly as a fallback path.
+    CHECK_CUDA_ERROR_RESULT(cudaMallocManaged(pointer, size),
+                            "Failed to allocate managed memory from a cuda allocator");
+    managed_map_.emplace(*pointer, size);
+    return GXF_SUCCESS;
+  }
+
   if (type != static_cast<int32_t>(MemoryStorageType::kDevice)) {
-    GXF_LOG_ERROR("Only Device memory type is supported in StreamOrderedAllocator [%05ld]('%s').",
+    GXF_LOG_ERROR("Only Device or Managed memory type is supported in StreamOrderedAllocator [%05ld]('%s').",
                   eid(), name());
     return GXF_ARGUMENT_INVALID;
   }
@@ -231,6 +234,13 @@ gxf_result_t StreamOrderedAllocator::free_async_abi(void* pointer, cudaStream_t 
 }
 
 gxf_result_t StreamOrderedAllocator::free_abi(void* pointer) {
+  const auto managed_it = managed_map_.find(pointer);
+  if (managed_it != managed_map_.end()) {
+    CHECK_CUDA_ERROR_RESULT(cudaFree(pointer), "Failed to free managed cuda memory");
+    managed_map_.erase(pointer);
+    return GXF_SUCCESS;
+  }
+
   const auto it = pool_map_.find(pointer);
   if (it != pool_map_.end()) {
     if (stream_) {
@@ -246,8 +256,13 @@ gxf_result_t StreamOrderedAllocator::free_abi(void* pointer) {
 }
 
 Expected<size_t> StreamOrderedAllocator::get_pool_size(MemoryStorageType type) const {
+  if (type == MemoryStorageType::kCudaManaged) {
+    // Managed allocations are not pooled.
+    return size_t{0};
+  }
+
   if (type != MemoryStorageType::kDevice) {
-    GXF_LOG_ERROR("Only Device memory type is supported in StreamOrderedAllocator [%05ld]('%s').",
+    GXF_LOG_ERROR("Only Device or Managed memory type is supported in StreamOrderedAllocator [%05ld]('%s').",
                   eid(), name());
     return GXF_ARGUMENT_INVALID;
   }

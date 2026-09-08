@@ -32,25 +32,46 @@ enum struct MemoryStorageType {
   kCudaManaged = 3  // Cuda Managed Memory
 };
 
-// Custom parameter parser for MemoryStorageType
+// Custom parameter parser for MemoryStorageType. Accepts both descriptive
+// strings ("Host", "Device", "System", "Managed") and legacy integer values
+// (0, 1, 2, 3) so existing YAML graphs continue to load.
 template <>
 struct ParameterParser<MemoryStorageType> {
   static Expected<MemoryStorageType> Parse(gxf_context_t context, gxf_uid_t component_uid,
                                        const char* key, const YAML::Node& node,
                                        const std::string& prefix) {
-    const std::string value = node.as<std::string>();
-    if (strcmp(value.c_str(), "Host") == 0) {
+    if (node.IsScalar()) {
+      // Try string names first.
+      const std::string value = node.as<std::string>();
+      if (strcmp(value.c_str(), "Host") == 0) {
+        return MemoryStorageType::kHost;
+      }
+      if (strcmp(value.c_str(), "Device") == 0) {
+        return MemoryStorageType::kDevice;
+      }
+      if (strcmp(value.c_str(), "System") == 0) {
+        return MemoryStorageType::kSystem;
+      }
+      if (strcmp(value.c_str(), "Managed") == 0) {
+        return MemoryStorageType::kCudaManaged;
+      }
+      // Fall back to integer string for backwards compatibility.
+      try {
+        const int32_t int_value = std::stoi(value);
+        switch (int_value) {
+          case 0: return MemoryStorageType::kHost;
+          case 1: return MemoryStorageType::kDevice;
+          case 2: return MemoryStorageType::kSystem;
+          case 3: return MemoryStorageType::kCudaManaged;
+          default: break;
+        }
+      } catch (const std::exception&) {
+        // Fall through to error.
+      }
+    } else if (node.IsNull()) {
       return MemoryStorageType::kHost;
     }
-    if (strcmp(value.c_str(), "Device") == 0) {
-      return MemoryStorageType::kDevice;
-    }
-    if (strcmp(value.c_str(), "System") == 0) {
-      return MemoryStorageType::kSystem;
-    }
-    if (strcmp(value.c_str(), "Managed") == 0) {
-      return MemoryStorageType::kCudaManaged;
-    }
+    GXF_LOG_ERROR("Invalid memory storage type value for parameter '%s'", key);
     return Unexpected{GXF_ARGUMENT_OUT_OF_RANGE};
   }
 };

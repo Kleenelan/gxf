@@ -476,6 +476,7 @@ Expected<DLDevice> Tensor::device() const {
       return DLDevice{kDLCPU, 0};
     case nvidia::gxf::MemoryStorageType::kHost:
     case nvidia::gxf::MemoryStorageType::kDevice:
+    case nvidia::gxf::MemoryStorageType::kCudaManaged:
       return DLDeviceFromPointer(pointer());
     default:
       GXF_LOG_ERROR("Unsupported GXF storage type (storage_type: (%d))",

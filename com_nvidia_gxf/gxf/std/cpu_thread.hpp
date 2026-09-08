@@ -17,6 +17,9 @@
 #ifndef NVIDIA_GXF_STD_CPU_THREAD_HPP
 #define NVIDIA_GXF_STD_CPU_THREAD_HPP
 
+#include <cstdint>
+#include <vector>
+
 #include "gxf/core/component.hpp"
 #include "gxf/std/resources.hpp"
 
@@ -24,8 +27,7 @@ namespace nvidia {
 namespace gxf {
 
 // Real-time scheduling policies supported by POSIX and Linux kernel
-// (backported from GXF 5.1 for holoscan-sdk compatibility; the scheduling
-// parameters themselves are not implemented by this 4.1-based runtime)
+// (backported from GXF 5.1 for holoscan-sdk compatibility).
 enum class SchedulingPolicy : int32_t {
   kFirstInFirstOut = 1,  // SCHED_FIFO supported by POSIX and Linux kernel
   kRoundRobin = 2,  // SCHED_RR supported by POSIX and Linux kernel
@@ -87,13 +89,58 @@ class CPUThread : public Component {
     return pin_entity_;
   }
 
+  // CPU cores to pin the worker thread to (empty means no core pinning).
+  std::vector<uint32_t> pinCores() const {
+    auto maybe = pin_cores_.try_get();
+    return maybe ? maybe.value() : std::vector<uint32_t>{};
+  }
+
+  // Real-time scheduling policy. Returns a default value if not configured.
+  SchedulingPolicy schedPolicy() const {
+    auto maybe = sched_policy_.try_get();
+    return maybe ? maybe.value() : SchedulingPolicy::kFirstInFirstOut;
+  }
+
+  // Thread priority for SCHED_FIFO/SCHED_RR. Returns 0 if not configured.
+  uint32_t schedPriority() const {
+    auto maybe = sched_priority_.try_get();
+    return maybe ? maybe.value() : 0u;
+  }
+
+  // SCHED_DEADLINE runtime in nanoseconds. Returns 0 if not configured.
+  uint64_t schedRuntime() const {
+    auto maybe = sched_runtime_.try_get();
+    return maybe ? maybe.value() : 0ull;
+  }
+
+  // SCHED_DEADLINE deadline in nanoseconds. Returns 0 if not configured.
+  uint64_t schedDeadline() const {
+    auto maybe = sched_deadline_.try_get();
+    return maybe ? maybe.value() : 0ull;
+  }
+
+  // SCHED_DEADLINE period in nanoseconds. Returns 0 if not configured.
+  uint64_t schedPeriod() const {
+    auto maybe = sched_period_.try_get();
+    return maybe ? maybe.value() : 0ull;
+  }
+
+  // Returns true if a real-time scheduling policy is configured.
+  bool isRealtime() const {
+    auto maybe = sched_policy_.try_get();
+    if (!maybe) { return false; }
+    const auto policy = maybe.value();
+    return policy == SchedulingPolicy::kFirstInFirstOut ||
+           policy == SchedulingPolicy::kRoundRobin ||
+           policy == SchedulingPolicy::kDeadline;
+  }
+
  private:
   // Keep track of whether or not the component should be pinned to a worker thread
   Parameter<bool> pin_entity_;
 
-  // GXF 5.1 compatibility parameters: accepted in registerInterface() so that
-  // graphs configuring them load successfully, but intentionally not applied
-  // (no core pinning / real-time scheduling in this 4.1-based runtime).
+  // GXF 5.1+ parameters: accepted, parsed and applied when a worker thread is
+  // created for the entity which owns this CPUThread component.
   Parameter<std::vector<uint32_t>> pin_cores_;
   Parameter<SchedulingPolicy> sched_policy_;
   Parameter<uint32_t> sched_priority_;
@@ -101,6 +148,12 @@ class CPUThread : public Component {
   Parameter<uint64_t> sched_deadline_;
   Parameter<uint64_t> sched_period_;
 };
+
+// Applies the CPUThread configuration identified by |cpu_thread_cid| to the
+// calling thread. Affinity is applied first, followed by the scheduling policy.
+// Scheduling failures due to missing privileges are logged as warnings and do
+// not stop execution.
+gxf_result_t ApplyCPUThreadConfiguration(gxf_context_t context, gxf_uid_t cpu_thread_cid);
 
 }  // namespace gxf
 }  // namespace nvidia

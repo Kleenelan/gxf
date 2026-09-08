@@ -77,16 +77,17 @@ Expected<Handle<ThreadPool>>
     return Unexpected{GXF_RESOURCE_NOT_FOUND};
   }
   auto thread_pool = maybe_thread_pool.value();
-  auto maybe_added = thread_pool->addThread(eid);
+  auto cpu_thread_cid = cpu_thread.at(0).value()->cid();
+  auto maybe_added = thread_pool->addThread(eid, cpu_thread_cid);
   if (!maybe_added) {
     GXF_LOG_ERROR(
       "ThreadPool [cid: %05zu, name: %s] failed to add thread for pinned entity "
       "[eid: %05zu, name: %s]", thread_pool->cid(), thread_pool->name(), eid, entity.name());
   } else {
     GXF_LOG_DEBUG(
-      "ThreadPool [cid: %05zu, name: %s] created thread [uid: %05zu] for pinned entity "
-      "[eid: %05zu, name: %s]", thread_pool->cid(), thread_pool->name(),
-      maybe_added.value(), eid, entity.name());
+      "ThreadPool [cid: %05zu, name: %s] created thread [uid: %05zu, cpu_thread_cid: %05zu] "
+      "for pinned entity [eid: %05zu, name: %s]", thread_pool->cid(), thread_pool->name(),
+      maybe_added.value(), cpu_thread_cid, eid, entity.name());
   }
   return maybe_thread_pool;
 }

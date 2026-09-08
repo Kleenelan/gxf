@@ -27,8 +27,9 @@ gxf_result_t BlockMemoryPool::registerInterface(Registrar* registrar) {
   Expected<void> result;
   result &= registrar->parameter(
       storage_type_, "storage_type", "Storage type",
-      "The memory storage type used by this allocator. Can be kHost (0), kDevice (1) or "
-      "kSystem (2)", 0);
+      "The memory storage type used by this allocator. Can be kHost (0/\"Host\"), "
+      "kDevice (1/\"Device\"), kSystem (2/\"System\") or kCudaManaged (3/\"Managed\")",
+      MemoryStorageType::kHost);
   result &= registrar->parameter(
       block_size_, "block_size", "Block size",
       "The size of one block of memory in byte. Allocation requests can only be fulfilled if they "
@@ -43,8 +44,9 @@ gxf_result_t BlockMemoryPool::registerInterface(Registrar* registrar) {
 
 gxf_result_t BlockMemoryPool::initialize() {
   // get device id from GPUDevice Resource
-  if (storage_type_.get() == static_cast<int32_t>(MemoryStorageType::kHost) ||
-      storage_type_.get() == static_cast<int32_t>(MemoryStorageType::kDevice)) {
+  if (storage_type_.get() == MemoryStorageType::kHost ||
+      storage_type_.get() == MemoryStorageType::kDevice ||
+      storage_type_.get() == MemoryStorageType::kCudaManaged) {
     if (gpu_device_.try_get()) {
       dev_id_ = gpu_device_.try_get().value()->device_id();
       GXF_LOG_DEBUG("BlockMemoryPool [cid: %ld]: GPUDevice Resource found. Using dev_id: %d",
@@ -60,7 +62,7 @@ gxf_result_t BlockMemoryPool::initialize() {
 
   const size_t total_size = num_blocks_ * block_size_;
 
-  switch (MemoryStorageType(storage_type_.get())) {
+  switch (storage_type_.get()) {
     case MemoryStorageType::kHost: {
       cudaSetDevice(dev_id_);
       const cudaError_t error = cudaMallocHost(&pointer_, total_size);
@@ -82,6 +84,15 @@ gxf_result_t BlockMemoryPool::initialize() {
     case MemoryStorageType::kSystem: {
         pointer_ = new uint8_t[total_size];
         if (pointer_ == nullptr) { return GXF_OUT_OF_MEMORY; }
+    } break;
+    case MemoryStorageType::kCudaManaged: {
+      cudaSetDevice(dev_id_);
+      const cudaError_t error = cudaMallocManaged(&pointer_, total_size);
+      if (error != cudaSuccess) {
+        GXF_LOG_ERROR("Failure in cudaMallocManaged. cuda_error: %s, error_str: %s",
+                      cudaGetErrorName(error), cudaGetErrorString(error));
+        return GXF_OUT_OF_MEMORY;
+      }
     } break;
     default:
       return GXF_PARAMETER_OUT_OF_RANGE;
@@ -118,7 +129,7 @@ gxf_result_t BlockMemoryPool::allocate_abi(uint64_t size, int32_t type, void** p
   if (pointer == nullptr) {
     return GXF_ARGUMENT_NULL;
   }
-  if (type != storage_type_) {
+  if (static_cast<MemoryStorageType>(type) != storage_type_.get()) {
     return GXF_ARGUMENT_INVALID;
   }
   if (size > block_size_) {
@@ -181,7 +192,7 @@ gxf_result_t BlockMemoryPool::deinitialize() {
   }
   stack_.release();
 
-  switch (MemoryStorageType(storage_type_.get())) {
+  switch (storage_type_.get()) {
     case MemoryStorageType::kHost: {
       const cudaError_t error = cudaFreeHost(pointer_);
       if (error != cudaSuccess) {
@@ -200,6 +211,14 @@ gxf_result_t BlockMemoryPool::deinitialize() {
     } break;
     case MemoryStorageType::kSystem: {
       delete[] static_cast<uint8_t*>(pointer_);
+    } break;
+    case MemoryStorageType::kCudaManaged: {
+      const cudaError_t error = cudaFree(pointer_);
+      if (error != cudaSuccess) {
+        GXF_LOG_ERROR("Failure in cudaFree for managed memory. cuda_error: %s, error_str: %s",
+                      cudaGetErrorName(error), cudaGetErrorString(error));
+        return GXF_FAILURE;
+      }
     } break;
     default:
       return GXF_PARAMETER_OUT_OF_RANGE;

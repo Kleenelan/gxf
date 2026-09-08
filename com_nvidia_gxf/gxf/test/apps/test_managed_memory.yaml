@@ -1,0 +1,76 @@
+%YAML 1.2
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Probe for Step D1: verifies that BlockMemoryPool with storage_type "Managed"
+# can be activated and used to allocate tensors via cudaMallocManaged.
+---
+dependencies:
+- extension: TestHelperExtension
+  uuid: 1b99ffeb-c250-4ced-8117-62ac05969a50
+  version: 2.6.0
+- extension: SampleExtension
+  uuid: a6ad78b6-1682-11ec-9621-0242ac130002
+  version: 1.6.0
+---
+name: pool
+components:
+- name: managed_pool
+  type: nvidia::gxf::BlockMemoryPool
+  parameters:
+    storage_type: "Managed"
+    block_size: 1024
+    num_blocks: 16
+---
+name: tx
+components:
+- name: signal
+  type: nvidia::gxf::test::MockTransmitter
+- type: nvidia::gxf::DownstreamReceptiveSchedulingTerm
+  parameters:
+    transmitter: signal
+    min_size: 1
+- type: nvidia::gxf::test::TensorGenerator
+  parameters:
+    output: signal
+    allocator: pool/managed_pool
+    shape: [4, 4]
+    storage_type: 3
+    number_of_tensors: 1
+    enable_timestamps: false
+- type: nvidia::gxf::CountSchedulingTerm
+  parameters:
+    count: 4
+---
+name: rx
+components:
+- name: signal
+  type: nvidia::gxf::test::MockReceiver
+- type: nvidia::gxf::MessageAvailableSchedulingTerm
+  parameters:
+    receiver: signal
+    min_size: 1
+- type: nvidia::gxf::PingRx
+  parameters:
+    signal: signal
+- type: nvidia::gxf::test::StepCount
+  parameters:
+    expected_count: 4
+---
+name: connections
+components:
+- type: nvidia::gxf::Connection
+  parameters:
+    source: tx/signal
+    target: rx/signal
+---
+name: scheduler
+components:
+- name: clock
+  type: nvidia::gxf::RealtimeClock
+- type: nvidia::gxf::test::EntityMonitor
+- type: nvidia::gxf::GreedyScheduler
+  parameters:
+    clock: clock
+    max_duration_ms: 5000
+---
