@@ -14,6 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <atomic>
 #include <cstring>
 #include <functional>
+#include "gxf/core/entity_pool_hooks.hpp"
 #include <memory>
 #include <mutex>
 #include <set>
@@ -219,6 +220,13 @@ class Runtime {
   gxf_result_t GxfComponentRemove(gxf_uid_t cid);
 
   gxf_result_t GxfComponentRemove(gxf_uid_t eid, gxf_tid_t tid, const char * name);
+
+  // Backported from GXF 5.7.1: batch-removes all components of an entity.
+  gxf_result_t GxfEntityClearComponents(gxf_uid_t eid);
+
+  // Same as GxfEntityClearComponents but bypasses the entity lookup when the
+  // caller already holds a valid EntityItem pointer.
+  gxf_result_t GxfEntityClearComponentsDirect(void* item_ptr);
 
   gxf_result_t GxfComponentAddToInterface(gxf_uid_t eid, gxf_uid_t cid,
                                           const char* name);

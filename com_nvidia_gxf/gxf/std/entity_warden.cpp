@@ -332,6 +332,64 @@ gxf_result_t EntityWarden::removeComponent(gxf_context_t context, gxf_uid_t eid,
     return GXF_SUCCESS;
 }
 
+Expected<FixedVector<gxf_uid_t, kMaxComponents>> EntityWarden::clearAllComponents(
+    gxf_uid_t eid, ComponentFactory* factory) {
+  EntityItem* item;
+  {
+    std::shared_lock<std::shared_timed_mutex> lock(shared_mutex_);
+    const auto it = entities_.find(eid);
+    if (it == entities_.end()) {
+      GXF_LOG_ERROR("Entity with uid %lu not found.", eid);
+      return Unexpected{GXF_ENTITY_NOT_FOUND};
+    }
+    item = it->second.get();
+  }
+  return clearAllComponentsDirect(item, factory);
+}
+
+Expected<FixedVector<gxf_uid_t, kMaxComponents>> EntityWarden::clearAllComponentsDirect(
+    EntityItem* item, ComponentFactory* factory) {
+  if (item == nullptr || factory == nullptr) { return Unexpected{GXF_ARGUMENT_NULL}; }
+  FixedVector<gxf_uid_t, kMaxComponents> removed;
+  // Detached component info carried into phase 2 (deallocation without locks).
+  // raw_pointer is used for deallocation: it is exactly what the allocator
+  // produced (component_pointer is null for components not derived from
+  // nvidia::gxf::Component, e.g. plain struct components such as CudaStreamId).
+  struct DetachedComponent {
+    gxf_tid_t tid;
+    void* raw_pointer;
+  };
+  FixedVector<DetachedComponent, kMaxComponents> detached;
+  // Phase 1: detach all components under the locks (acquired once). The
+  // components_ map cleanup requires shared_mutex_, the components list
+  // cleanup requires the entity item mutex.
+  {
+    std::unique_lock<std::shared_timed_mutex> lock(shared_mutex_);
+    std::unique_lock<std::shared_mutex> entity_item_lock(item->entity_item_mutex_);
+    if (item->stage != Stage::kUninitialized) {
+      return Unexpected{GXF_ENTITY_CAN_NOT_REMOVE_COMPONENT_AFTER_INITIALIZATION};
+    }
+    for (size_t i = 0; i < item->components.size(); i++) {
+      const auto& component = item->components[i].value();
+      components_.erase(component.cid);
+      auto result = removed.push_back(component.cid);
+      if (!result) { return Unexpected{GXF_OUT_OF_MEMORY}; }
+      auto result2 = detached.push_back(
+          DetachedComponent{component.tid, component.raw_pointer});
+      if (!result2) { return Unexpected{GXF_OUT_OF_MEMORY}; }
+    }
+    item->components.clear();
+  }
+  // Phase 2: deallocate the detached components without holding the warden
+  // lock (destructors may run arbitrary component code).
+  for (size_t i = 0; i < detached.size(); i++) {
+    const Expected<void> code = factory->deallocate(detached[i].value().tid,
+                                                    detached[i].value().raw_pointer);
+    if (!code) { return ForwardError(code); }
+  }
+  return removed;
+}
+
 gxf_result_t EntityWarden::addComponent(gxf_uid_t eid, gxf_uid_t cid, gxf_tid_t tid,
                                         void* raw_pointer, Component* component) {
   {

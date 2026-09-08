@@ -55,6 +55,17 @@ class EntityWarden {
   gxf_result_t removeComponent(gxf_context_t context, gxf_uid_t eid, gxf_uid_t cid,
                             ComponentFactory * factory);
 
+  // Backported from GXF 5.7.1: removes all components of an entity in a single
+  // batch operation, acquiring the locks once. The entity must be in the
+  // uninitialized stage. On success returns the ids of the removed components.
+  Expected<FixedVector<gxf_uid_t, kMaxComponents>> clearAllComponents(
+      gxf_uid_t eid, ComponentFactory* factory);
+
+  // Same as clearAllComponents but bypasses the entity lookup when the caller
+  // already holds a valid EntityItem pointer (e.g. EntityPool return path).
+  Expected<FixedVector<gxf_uid_t, kMaxComponents>> clearAllComponentsDirect(
+      EntityItem* item, ComponentFactory* factory);
+
   gxf_result_t addComponentToInterface(gxf_uid_t eid, gxf_uid_t cid, const char* name);
 
   Expected<gxf_uid_t> getComponentEntity(gxf_uid_t cid) const;

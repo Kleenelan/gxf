@@ -24,8 +24,19 @@ set -euo pipefail
 _info() { echo -e "\e[32m[dist]\e[0m $*"; }
 _err()  { echo -e "\e[31m[dist ERROR]\e[0m $*" >&2; exit 1; }
 
-VER="$(grep -oP 'kGxfCoreVersion "\K[^"]+' "$WS/gxf/core/gxf.h")"
-[[ -n "$VER" ]] || _err "cannot read kGxfCoreVersion from gxf/core/gxf.h"
+# Version strategy: the source tree honestly keeps kGxfCoreVersion "4.1.0"
+# (this branch is GXF 4.1 + a 5.7.1 compatibility layer), but the PACKAGE
+# version claims 5.7.1 so that downstream consumers with a versioned
+# find_package (e.g. holoscan-sdk v4.5.0 requires `find_package(GXF 5.7.1
+# CONFIG REQUIRED)`) accept the tarball. Only the tarball file name and
+# lib/cmake/GXF/GXFConfigVersion.cmake are affected. Override with
+# GXF_DIST_VERSION=<ver> if needed.
+SRC_VER="$(grep -oP 'kGxfCoreVersion "\K[^"]+' "$WS/gxf/core/gxf.h")"
+[[ -n "$SRC_VER" ]] || _err "cannot read kGxfCoreVersion from gxf/core/gxf.h"
+VER="${GXF_DIST_VERSION:-5.7.1}"
+if [[ "$VER" != "$SRC_VER" ]]; then
+  _info "Source version: $SRC_VER; package version (GXF_DIST_VERSION): $VER"
+fi
 
 STAGE="$BUILD/dist/gxf-install"
 rm -rf "$STAGE"

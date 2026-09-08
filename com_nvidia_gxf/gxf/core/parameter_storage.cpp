@@ -209,5 +209,16 @@ Expected<void> ParameterStorage::clearEntityParameters(gxf_uid_t eid) {
   }
 }
 
+Expected<void> ParameterStorage::clearMultipleEntityParameters(const gxf_uid_t* uids,
+                                                               size_t count) {
+  if (uids == nullptr && count > 0) { return Unexpected{GXF_ARGUMENT_NULL}; }
+  std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+  for (size_t i = 0; i < count; i++) {
+    const auto it = parameters_.find(uids[i]);
+    if (it != parameters_.end()) { parameters_.erase(it); }
+  }
+  return Success;
+}
+
 }  // namespace gxf
 }  // namespace nvidia

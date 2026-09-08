@@ -456,12 +456,12 @@ class Entity {
    * @brief Finds all components in an entity. A fixed-size vector of untyped handles of all the
    * components are returned.
    *
-   * @tparam N Capacity of the FixedVector
-   * @return Expected<FixedVector<UntypedHandle, N>> A fixed-size vector of untyped handles of all
-   * the components allocated on heap
+   * @tparam N Maximum number of components to enumerate
+   * @return Expected<FixedVector<UntypedHandle>> A heap-allocated vector of untyped handles of
+   * all the components
    */
   template <size_t N = kMaxComponents>
-  Expected<FixedVector<UntypedHandle, N>> findAllHeap() const {
+  Expected<FixedVector<UntypedHandle>> findAllHeap() const {
     const gxf_context_t c_context = context();
     const gxf_uid_t c_eid = eid();
     gxf_uid_t cids[N];

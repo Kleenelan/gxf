@@ -367,6 +367,9 @@ STD_SINGLE := allocator async_buffer_receiver async_buffer_transmitter \
   timestamp topic transmitter unbounded_allocator vault yaml_file_loader
 $(foreach n,$(STD_SINGLE),$(eval $(call LO_RULE,$(L)/gxf/std/lib$(n).lo,$(OBJ)/gxf/std/$(n).o)))
 $(eval $(call LO_RULE,$(L)/gxf/std/libscheduling_terms.lo,$(OBJ)/gxf/std/scheduling_condition.o $(OBJ)/gxf/std/scheduling_terms.o))
+# entity_pool: linked ONLY into libgxf_std.so (NOT into STD_FULL_LO) so the
+# pool registry/hook installer is not duplicated into every extension .so
+$(eval $(call LO_RULE,$(L)/gxf/std/libentity_pool.lo,$(OBJ)/gxf/std/entity_pool.o))
 $(eval $(call LO_RULE,$(L)/gxf/std/libstd_src.lo,$(OBJ)/gxf/std/std.o))
 $(eval $(call LO_RULE,$(L)/gxf/std/libgxf_std_static.lo,$(OBJ)/gxf/std/std.o))
 $(eval $(call LO_RULE,$(L)/gxf/std/gems/utils/libtime.lo,$(OBJ)/gxf/std/gems/utils/time.o))
@@ -470,7 +473,7 @@ EXCLUDE_YAML := -Wl,--exclude-libs,libyaml_file_loader.lo -Wl,--exclude-libs,lib
 $(SO_CORE): $(L)/gxf/core/libgxf.lo $(CORE4_LO) $(STD_RT_LO) $(COMMON_LO) $(LOGGER_LO) $(YAML_CPP_A)
 	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(EXCLUDE_YAML) -pthread -ldl)
 
-$(SO_STD): $(L)/gxf/std/libstd_src.lo $(STD_FULL_LO) $(YAML_CPP_A)
+$(SO_STD): $(L)/gxf/std/libstd_src.lo $(L)/gxf/std/libentity_pool.lo $(STD_FULL_LO) $(YAML_CPP_A)
 	$(call link_so,$(filter %.lo,$^),$(YAML_CPP_A) $(CUDART_LINK) \
 	  $(RPATH_ORIGIN) -pthread -ldl)
 

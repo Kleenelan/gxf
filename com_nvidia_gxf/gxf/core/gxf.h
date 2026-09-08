@@ -649,6 +649,27 @@ gxf_result_t GxfComponentRemoveWithUID(gxf_context_t context, gxf_uid_t cid);
 gxf_result_t GxfComponentRemove(gxf_context_t context, gxf_uid_t eid, gxf_tid_t tid,
  const char * name);
 
+/// @brief Removes all components from an entity in a single batch operation.
+///
+/// More efficient than calling GxfComponentRemoveWithUID in a loop because it acquires locks once
+/// and avoids incremental index updates. The entity must be in the uninitialized stage.
+///
+/// @param context A valid GXF context
+/// @param eid The UID of the entity whose components should be cleared
+/// @return GXF_SUCCESS if the operation was successful, or otherwise one of the GXF error codes.
+gxf_result_t GxfEntityClearComponents(gxf_context_t context, gxf_uid_t eid);
+
+/// @brief Clears all components from an entity using a cached EntityItem pointer.
+///
+/// Same as GxfEntityClearComponents but bypasses the entity lookup (shared_mutex_ acquisition)
+/// when the caller already has a valid EntityItem pointer. This is used by EntityPool to avoid
+/// redundant lock acquisitions on the pool return path.
+///
+/// @param context A valid GXF context
+/// @param item_ptr A valid EntityItem pointer (obtained from GxfCreateEntityAndGetItem or similar)
+/// @return GXF_SUCCESS if the operation was successful, or otherwise one of the GXF error codes.
+gxf_result_t GxfEntityClearComponentsDirect(gxf_context_t context, void* item_ptr);
+
 /// An entity can holds references to other components in its interface, so that when finding a
 /// component in an entity, both the component this entity holds and those it refers to will be
 /// returned.

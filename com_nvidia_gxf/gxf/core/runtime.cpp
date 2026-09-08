@@ -25,6 +25,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 namespace nvidia {
 namespace gxf {
 
+// EntityPool hook variables (defined here in libgxf_core.so; installed by
+// gxf/std/entity_pool.cpp when libgxf_std.so is loaded). See
+// gxf/core/entity_pool_hooks.hpp.
+EntityPoolTryReturnHook g_entity_pool_try_return_hook = nullptr;
+EntityPoolTryAcquireHook g_entity_pool_try_acquire_hook = nullptr;
+EntityPoolReleaseContextHook g_entity_pool_release_context_hook = nullptr;
+
 namespace {
 constexpr const char* kCorePropertyRefCount = "__ref_count";
 
@@ -239,6 +246,12 @@ gxf_result_t Runtime::create(gxf_context_t shared) {
 
 gxf_result_t Runtime::destroy() {
   gxf_result_t code = GXF_SUCCESS;
+
+  // Release entity pools registered for this context while the runtime (and
+  // thus the entity warden they need for GxfEntityDestroy) is still alive.
+  if (g_entity_pool_release_context_hook != nullptr) {
+    g_entity_pool_release_context_hook(context());
+  }
 
   program_.destroy();  // FIXME handle error code
 
@@ -661,6 +674,18 @@ gxf_result_t Runtime::GxfCreateEntity(const GxfEntityCreateInfo& info, gxf_uid_t
     }
   }
 
+  // GXF 5.7.1 EntityPool integration: give the pool a chance to recycle an
+  // entity for unnamed, non-program entities before allocating a new UID.
+  if ((info.entity_name == nullptr || info.entity_name[0] == '\0') &&
+      (info.flags & GXF_ENTITY_CREATE_PROGRAM_BIT) == 0 &&
+      g_entity_pool_try_acquire_hook != nullptr) {
+    gxf_uid_t pooled_eid = kNullUid;
+    if (g_entity_pool_try_acquire_hook(context(), pooled_eid, item_ptr)) {
+      eid = pooled_eid;
+      return GXF_SUCCESS;
+    }
+  }
+
   // Get a new unique entity ID
   eid = shared_context_->getNextId();
 
@@ -797,6 +822,13 @@ gxf_result_t Runtime::GxfEntityDeactivate(gxf_uid_t eid) {
 }
 
 gxf_result_t Runtime::GxfEntityDestroyImpl(gxf_uid_t eid) {
+  // GXF 5.7.1 EntityPool integration: pooled entities are recycled (their
+  // components cleared) instead of being destroyed.
+  if (g_entity_pool_try_return_hook != nullptr &&
+      g_entity_pool_try_return_hook(context(), eid)) {
+    return GXF_SUCCESS;
+  }
+
   // DO NOT CREATE AN ENTITY OBJECT IN THIS METHOD.
   // This method gets called because the refcount of the
   // entity `eid` dropped to zero.
@@ -1195,6 +1227,30 @@ gxf_result_t Runtime::GxfComponentRemove(gxf_uid_t cid) {
   }
 
   return GXF_SUCCESS;
+}
+
+gxf_result_t Runtime::GxfEntityClearComponents(gxf_uid_t eid) {
+  Expected<EntityItem*> entity_item = warden_->getEntityPtr(eid);
+  if (!entity_item) { return ToResultCode(entity_item); }
+  return GxfEntityClearComponentsDirect(entity_item.value());
+}
+
+gxf_result_t Runtime::GxfEntityClearComponentsDirect(void* item_ptr) {
+  if (item_ptr == nullptr) { return GXF_ARGUMENT_NULL; }
+  EntityItem* item = static_cast<EntityItem*>(item_ptr);
+  Expected<FixedVector<gxf_uid_t, kMaxComponents>> removed =
+      warden_->clearAllComponentsDirect(item, extension_loader_);
+  if (!removed) { return ToResultCode(removed); }
+  // Remove the components from the global object storage
+  for (size_t i = 0; i < removed.value().size(); i++) {
+    const gxf_result_t code =
+        shared_context_->removeSingleComponentPointer(removed.value().data()[i]);
+    if (code != GXF_SUCCESS) { return code; }
+  }
+  // Clear the parameters of all removed components under a single lock
+  const Expected<void> result = parameters_->clearMultipleEntityParameters(
+      removed.value().data(), removed.value().size());
+  return ToResultCode(result);
 }
 
 gxf_result_t Runtime::GxfComponentAddToInterface(gxf_uid_t eid, gxf_uid_t cid,

@@ -408,6 +408,16 @@ gxf_result_t GxfComponentRemove(gxf_context_t context, gxf_uid_t eid, gxf_tid_t 
   return nvidia::gxf::FromContext(context)->GxfComponentRemove(eid, tid, name);
 }
 
+gxf_result_t GxfEntityClearComponents(gxf_context_t context, gxf_uid_t eid) {
+  if (context == nullptr) return GXF_CONTEXT_INVALID;
+  return nvidia::gxf::FromContext(context)->GxfEntityClearComponents(eid);
+}
+
+gxf_result_t GxfEntityClearComponentsDirect(gxf_context_t context, void* item_ptr) {
+  if (context == nullptr) return GXF_CONTEXT_INVALID;
+  return nvidia::gxf::FromContext(context)->GxfEntityClearComponentsDirect(item_ptr);
+}
+
 gxf_result_t GxfComponentAddToInterface(gxf_context_t context, gxf_uid_t eid,
                                         gxf_uid_t cid, const char* name) {
   if (context == nullptr) return GXF_CONTEXT_INVALID;

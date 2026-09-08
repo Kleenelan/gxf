@@ -53,6 +53,15 @@ notes in each file before relying on it:
   `MemoryBuffer::setStream()` (no-op), `Receiver::StageSizeSnapshot`,
   `NetworkContext::are_connections_ready()`, `Router::requiresNetworkContext()`
 
+Package version note: the source tree honestly keeps
+`kGxfCoreVersion "4.1.0"`, but `make dist` labels the tarball and its
+`GXFConfigVersion.cmake` as **5.7.1** by default (override with
+`GXF_DIST_VERSION=<ver>`), so versioned consumers such as
+`find_package(GXF 5.7.1 CONFIG REQUIRED)` accept it. Conversely, any
+downstream project still calling `find_package(GXF 4.x ...)` will now fail
+the version check against this package — build a differently versioned
+tarball for them with `GXF_DIST_VERSION=4.1.0 make dist`.
+
 ## Overview
 
 ## Overview

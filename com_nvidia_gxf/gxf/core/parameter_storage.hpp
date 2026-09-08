@@ -175,6 +175,10 @@ class ParameterStorage {
   // Clean up data for specific Entity upon Entity destruction
   Expected<void> clearEntityParameters(gxf_uid_t eid);
 
+  // Batch variant (backported from GXF 5.7.1): clears parameters for multiple
+  // entities/components under a single lock.
+  Expected<void> clearMultipleEntityParameters(const gxf_uid_t* uids, size_t count);
+
  private:
   friend class Runtime;
 
