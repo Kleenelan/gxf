@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <arpa/inet.h> /* inet_addr */
 #include <ucp/api/ucp.h>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -149,6 +150,63 @@ ucs_status_t process_request(ucp_worker_h ucp_worker, void* req) {
         do {
             ucp_worker_progress(ucp_worker);
             status = ucp_request_check_status(req);
+        } while (status == UCS_INPROGRESS);
+        ucp_request_free(req);
+    } else {
+        status = UCS_PTR_STATUS(req);
+    }
+    return status;
+}
+
+// GXF 5.7.1 alignment: timeout variants used by the graceful shutdown path.
+// timeout_ms == 0 means "wait indefinitely" (identical to the non-timeout
+// variants above); on expiry UCS_ERR_TIMED_OUT is returned and the request is
+// NOT freed, leaving cancellation to the caller.
+ucs_status_t request_wait_with_timeout(ucp_worker_h ucp_worker, void* request,
+                                       test_req_t* ctx, int64_t timeout_ms) {
+    ucs_status_t status;
+
+    /* if operation was completed immediately */
+    if (request == NULL) {
+        return UCS_OK;
+    }
+
+    if (UCS_PTR_IS_ERR(request)) {
+        return UCS_PTR_STATUS(request);
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(timeout_ms);
+    while (ctx->complete == 0) {
+        if (timeout_ms > 0 && std::chrono::steady_clock::now() >= deadline) {
+            return UCS_ERR_TIMED_OUT;
+        }
+        ucp_worker_progress(ucp_worker);
+    }
+    status = ucp_request_check_status(request);
+
+    ucp_request_free(request);
+    free(ctx);
+    return status;
+}
+
+ucs_status_t process_request_with_timeout(ucp_worker_h ucp_worker, void* req,
+                                          int64_t timeout_ms) {
+    ucs_status_t status;
+
+    if (req == NULL) {
+        return UCS_OK;
+    }
+    if (UCS_PTR_IS_PTR(req)) {
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::milliseconds(timeout_ms);
+        do {
+            ucp_worker_progress(ucp_worker);
+            status = ucp_request_check_status(req);
+            if (status == UCS_INPROGRESS && timeout_ms > 0 &&
+                std::chrono::steady_clock::now() >= deadline) {
+                return UCS_ERR_TIMED_OUT;
+            }
         } while (status == UCS_INPROGRESS);
         ucp_request_free(req);
     } else {

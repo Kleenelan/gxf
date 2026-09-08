@@ -120,12 +120,14 @@ gxf_result_t UcxReceiver::init_context(ucp_worker_h  ucp_worker,
                                        ucx_am_data_desc* am_data_desc,
                                        int fd,
                                        bool cpu_data_only,
-                                       bool enable_async) {
+                                       bool enable_async,
+                                       std::atomic<bool>* shutting_down) {
   ucp_worker_ = ucp_worker;
   am_data_desc_ = am_data_desc;
   efd_signal_ = fd;
   cpu_data_only_ = cpu_data_only;
   enable_async_ = enable_async;
+  shutting_down_ = shutting_down;
   return GXF_SUCCESS;
 }
 
@@ -247,7 +249,12 @@ gxf_result_t UcxReceiver::sync_abi() {
 
 gxf_result_t UcxReceiver::sync_io_abi() {
   if (!queue_) { return GXF_FAILURE; }
-  if (!ucp_worker_ || !am_data_desc_->receiving_message) return GXF_SUCCESS;
+  // Graceful shutdown: the receiver keeps completing in-flight receives while
+  // draining; once UcxContext has destroyed the worker it detaches this
+  // receiver (handles set to NULL), so never touch them afterwards.
+  if (!ucp_worker_ || !am_data_desc_ || !am_data_desc_->receiving_message) {
+    return GXF_SUCCESS;
+  }
 
   return receive_message();
 }
@@ -255,6 +262,15 @@ gxf_result_t UcxReceiver::sync_io_abi() {
 gxf_result_t UcxReceiver::wait_abi() {
     if (!enable_async_) {
       return GXF_SUCCESS;
+    }
+    // Graceful shutdown: after UcxContext destroyed the worker it detached this
+    // receiver (ucp_worker_ == NULL); drop outstanding requests and report
+    // completion without touching destroyed handles. During the drain window
+    // (worker still alive) behavior is identical to 4.1 so the receive
+    // pipeline keeps flowing.
+    if (!ucp_worker_) {
+        requests.clear();
+        return GXF_SUCCESS;
     }
     gxf_result_t result;
     gxf_result_t ret = GXF_SUCCESS;

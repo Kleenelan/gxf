@@ -44,21 +44,198 @@ gxf_result_t UcxContext::registerInterface(Registrar* registrar) {
             "enable asynchronous transmit/receive",
             "If true, UCX transmit and receive will queue messages to be sent asynchronously.",
             true);
+    result &= registrar->parameter(shutdown_timeout_ms_, "shutdown_timeout_ms",
+            "Shutdown Timeout (ms)",
+            "Timeout in milliseconds for shutdown operations "
+            "(thread joins, pending request cancellation)", 2000UL);
   return gxf::ToResultCode(result);
 }
 
-// GXF 5.7.1 compatibility stub: records the shutdown request and returns
-// success; the actual teardown still happens in deinitialize() as before
-// (no graceful drain of pending UCX requests in this 4.1-based build).
-gxf_result_t UcxContext::initiate_shutdown() {
-  const bool already = shutting_down_.exchange(true);
-  if (!already) {
-    GXF_LOG_INFO(
-        "UcxContext (cid: %ld): shutdown initiated (compatibility stub; pending UCX "
-        "requests are not drained gracefully in this GXF 4.1-based build)",
-        cid());
+ucp_context_h UcxContext::get_initialized_context(const char* operation) {
+  std::lock_guard<std::mutex> lock(context_init_mutex_);
+  if (ucp_context_ == nullptr) {
+    GXF_LOG_ERROR("UcxContext (cid: %ld): %s called before UCX context initialization",
+                  cid(), operation);
+    return nullptr;
   }
+  return ucp_context_;
+}
+
+UcxShutdownStatus UcxContext::get_shutdown_status() const {
+  UcxShutdownStatus status;
+  status.shutting_down = shutting_down_.load(std::memory_order_acquire);
+  status.tx_thread_running = tx_thread_.joinable();
+  status.rx_thread_running = rx_thread_.joinable();
+  {
+    // mtx_ is not mutable (5.7.1 header layout); the lock is only taken for
+    // the duration of the size read.
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mtx_));
+    status.pending_tx_requests = pending_send_requests_.size();
+  }
+  status.tx_contexts_count = tx_contexts_.size();
+  status.rx_contexts_count = rx_contexts_.size();
+  return status;
+}
+
+// GXF 5.7.1 graceful shutdown (replaces the former flag-only compatibility
+// stub). Sequence: set the atomic flag -> stop accepting new connections and
+// shield callbacks -> drain pending transmit requests within
+// shutdown_timeout_ms_ -> signal the I/O threads to exit -> join them with
+// the (remaining) timeout, detaching on expiry -> close endpoints and destroy
+// per-connection workers. Idempotent: a second call is a no-op.
+//
+// Note: transmitters/receivers hold a pointer to shutting_down_ and refuse to
+// send/reconnect/receive once it is set, so a still-running scheduler only
+// observes ordinary (expected) send/receive failures after this call.
+gxf_result_t UcxContext::initiate_shutdown() {
+  const bool already = shutting_down_.exchange(true, std::memory_order_acq_rel);
+  if (already) {
+    return GXF_SUCCESS;
+  }
+  const uint64_t timeout_ms = shutdown_timeout_ms_.get();
+  GXF_LOG_INFO("UcxContext (cid: %ld): initiating graceful shutdown (timeout %lu ms)",
+               cid(), timeout_ms);
+
+  if (get_initialized_context("initiate_shutdown") == nullptr) {
+    // Nothing was ever set up; the flag is still recorded for late users.
+    return GXF_SUCCESS;
+  }
+
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(timeout_ms);
+  const auto remaining_ms = [&deadline]() -> uint64_t {
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) { return 0; }
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count());
+  };
+
+  // 1. Stop accepting new connections; shield UCX callbacks via the per-context
+  //    flag (they fire on UCX progress threads we do not own).
+  for (auto rx_context_iter : rx_contexts_) {
+    auto rx_context = rx_context_iter.value();
+    rx_context->is_shutting_down.store(true, std::memory_order_release);
+    if (rx_context->conn_state == INIT) {
+      rx_context->conn_state = CLOSING;
+    }
+  }
+
+  if (enable_async_.get()) {
+    // 2. Drain pending transmit requests (the tx thread keeps finalizing them).
+    while (std::chrono::steady_clock::now() < deadline) {
+      {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (pending_send_requests_.empty()) { break; }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    size_t remaining = 0;
+    {
+      std::lock_guard<std::mutex> lock(mtx_);
+      remaining = pending_send_requests_.size();
+    }
+    if (remaining != 0) {
+      GXF_LOG_WARNING("UcxContext (cid: %ld): %zu transmit request(s) still pending "
+                      "after %lu ms; forcing shutdown", cid(), remaining, timeout_ms);
+    }
+
+    // 3. Signal the tx/rx threads to exit (tx exits once the queue is empty or
+    //    abandoned under the shutdown flag; rx exits its epoll loop).
+    {
+      std::lock_guard<std::mutex> lock(mtx_);
+      areTransmittersDone = true;
+    }
+    cv_.notify_one();
+    close_server_loop_ = true;
+    if (efd_signal_ != -1) {
+      uint64_t val = 1;
+      if (write(efd_signal_, &val, sizeof(val)) == -1) {
+        GXF_LOG_ERROR("Failed to signal rx thread to close");
+      }
+    }
+
+    // 4. Join both threads, bounded by the remaining timeout.
+    const bool tx_joined = join_thread_with_timeout(tx_thread_, "tx", remaining_ms());
+    const bool rx_joined = join_thread_with_timeout(rx_thread_, "rx", remaining_ms());
+
+    // 5. Close endpoints and destroy per-connection workers — only safe for
+    //    threads that actually exited; otherwise leak (process is tearing down).
+    if (tx_joined) {
+      destroy_tx_contexts();
+    } else {
+      GXF_LOG_ERROR("UcxContext (cid: %ld): tx thread still running after timeout; "
+                    "leaking tx contexts to avoid use-after-free", cid());
+      tx_contexts_abandoned_ = true;
+    }
+    if (rx_joined) {
+      destroy_rx_contexts();
+    } else {
+      GXF_LOG_ERROR("UcxContext (cid: %ld): rx thread still running after timeout; "
+                    "leaking rx contexts to avoid use-after-free", cid());
+      rx_contexts_abandoned_ = true;
+    }
+  } else {
+    // Synchronous mode: in-flight request_wait() runs on scheduler threads and
+    // cannot be interrupted safely; signal the server loop, join it, and leave
+    // endpoint teardown to removeRoutes()/deinitialize() as in 4.1.
+    close_server_loop_ = true;
+    if (!join_thread_with_timeout(t_, "server", remaining_ms())) {
+      GXF_LOG_ERROR("UcxContext (cid: %ld): server thread still running after timeout; "
+                    "leaking rx contexts to avoid use-after-free", cid());
+      rx_contexts_abandoned_ = true;
+    }
+  }
+
+  const auto status = get_shutdown_status();
+  GXF_LOG_INFO("UcxContext (cid: %ld): shutdown complete "
+               "(pending_tx=%zu tx_ctx=%zu rx_ctx=%zu tx_thread_running=%d "
+               "rx_thread_running=%d)",
+               cid(), status.pending_tx_requests, status.tx_contexts_count,
+               status.rx_contexts_count, status.tx_thread_running,
+               status.rx_thread_running);
   return GXF_SUCCESS;
+}
+
+// std::thread offers no timed join. The worker threads are cooperative (they
+// exit on the flags/wake-ups issued by initiate_shutdown), so the join itself
+// is delegated to a detached helper while this thread polls a completion flag;
+// on expiry the worker thread is detached as a last resort so that
+// ~std::thread() cannot terminate the process.
+bool UcxContext::join_thread_with_timeout(std::thread& thread, const char* thread_name,
+                                          uint64_t timeout_ms) {
+  if (!thread.joinable()) {
+    return true;
+  }
+  auto done = std::make_shared<std::atomic<bool>>(false);
+  std::thread([&thread, done]() {
+      try {
+          if (thread.joinable()) { thread.join(); }
+      } catch (const std::system_error&) {
+          // Lost a race with the timeout detach below (join on an already
+          // detached thread throws EINVAL); the completion flag still reports
+          // the outcome.
+      }
+      done->store(true, std::memory_order_release);
+  }).detach();
+
+  const auto deadline = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(timeout_ms);
+  while (!done->load(std::memory_order_acquire)) {
+    if (std::chrono::steady_clock::now() >= deadline) {
+      GXF_LOG_ERROR("UcxContext (cid: %ld): thread '%s' did not exit within %lu ms; "
+                    "detaching", cid(), thread_name, timeout_ms);
+      // The detached helper may still be blocked in join(); racing detach()
+      // here is contained to the already-degraded timeout path.
+      try {
+        thread.detach();
+      } catch (const std::system_error&) {
+        // The helper completed the join in the meantime.
+      }
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  return true;
 }
 
 gxf_result_t UcxContext::initialize() {
@@ -92,13 +269,31 @@ gxf_result_t UcxContext::deinitialize() {
         t_.join();
     }
   }
-    ucp_cleanup(ucp_context_);
+    if (ucp_context_ != nullptr) {
+        if (tx_contexts_abandoned_ || rx_contexts_abandoned_) {
+            // Forced-shutdown path: workers were deliberately leaked (a detached
+            // thread may still reference them); ucp_cleanup() requires all
+            // workers destroyed, so the whole context is leaked instead.
+            GXF_LOG_ERROR("UcxContext (cid: %ld): leaking ucp context after forced "
+                          "shutdown (workers still owned by detached threads)", cid());
+        } else {
+            ucp_cleanup(ucp_context_);
+        }
+        ucp_context_ = nullptr;
+    }
     return GXF_SUCCESS;
 }
 
 void UcxContext::destroy_rx_contexts() {
     for (auto rx_context_iter : rx_contexts_) {
         auto rx_context = rx_context_iter.value();
+        // Detach the receiver from the handles that are about to be destroyed:
+        // its ABI entry points null-check ucp_worker_/am_data_desc_ and become
+        // no-ops (graceful shutdown may run while the scheduler is still up).
+        if (rx_context->rx) {
+            rx_context->rx->init_context(NULL, NULL, 0, cpu_data_only_.get(),
+                                         enable_async_.get());
+        }
         if (rx_context->conn_state == CONNECTED) {
             ep_close(rx_context->ucp_worker, rx_context->ep, 0);
         }
@@ -133,9 +328,15 @@ Expected<void> UcxContext::removeRoutes(const Entity& entity) {
           areTransmittersDone = true;
       }
       cv_.notify_one();
-      tx_thread_.join();
+      // joinable() guard: initiate_shutdown() may already have joined (or
+      // detached, on timeout) the thread; behavior is unchanged otherwise.
+      if (tx_thread_.joinable()) {
+          tx_thread_.join();
+      }
     }
-    destroy_tx_contexts();
+    if (!tx_contexts_abandoned_) {
+      destroy_tx_contexts();
+    }
   }
   if (rx_contexts_.size()) {
       close_server_loop_ = true;
@@ -145,12 +346,18 @@ Expected<void> UcxContext::removeRoutes(const Entity& entity) {
         if (write(efd_signal_, &val, sizeof(val)) == -1) {
             GXF_LOG_ERROR("Failed to signal thread to close");
         }
-        rx_thread_.join();
+        if (rx_thread_.joinable()) {
+            rx_thread_.join();
+        }
       } else {
-        t_.join();
+        if (t_.joinable()) {
+            t_.join();
+        }
       }
       close_server_loop_ = false;
-      destroy_rx_contexts();
+      if (!rx_contexts_abandoned_) {
+        destroy_rx_contexts();
+      }
   }
   return Success;
 }
@@ -212,12 +419,49 @@ void UcxContext::poll_queue() {
   gxf_result_t result;
   while (true) {
       std::unique_lock<std::mutex> lock(mtx_);
-      if (areTransmittersDone && (pending_send_requests_.empty())) {
+      // Graceful shutdown: once shutting_down_ is set, do not wait for a
+      // drained queue — cancel whatever is left and exit (forced path).
+      if (areTransmittersDone &&
+              (pending_send_requests_.empty() ||
+               shutting_down_.load(std::memory_order_acquire))) {
+          while (!pending_send_requests_.empty()) {
+              auto& data = pending_send_requests_.front();
+              GXF_LOG_WARNING("UcxContext: canceling pending transmit request on shutdown");
+              if (data.request != NULL && !UCS_PTR_IS_ERR(data.request)) {
+                  ucp_request_cancel(data.ucp_worker, data.request);
+                  // Let the cancellation take effect; UCX still invokes the send
+                  // callback (with UCS_ERR_CANCELED) which completes the ctx.
+                  for (int i = 0; i < WORKER_PROGRESS_ITERATIONS; i++) {
+                      ucp_worker_progress(data.ucp_worker);
+                  }
+                  if (ucp_request_check_status(data.request) != UCS_INPROGRESS) {
+                      ucp_request_free(data.request);
+                      if (data.ctx) {
+                          if (data.ctx->header) { free(data.ctx->header); }
+                          free(data.ctx);
+                      }
+                  } else {
+                      GXF_LOG_ERROR("UcxContext: abandoning in-flight send request "
+                                    "(leaking request ctx to avoid use-after-free)");
+                  }
+              } else if (data.ctx) {
+                  if (data.ctx->header) { free(data.ctx->header); }
+                  free(data.ctx);
+              }
+              pending_send_requests_.pop_front();
+          }
           lock.unlock();
           break;
       }
       cv_.wait(lock, [this]{ return (areTransmittersDone || !pending_send_requests_.empty()); });
       while (!pending_send_requests_.empty()) {
+          // Re-check the forced-shutdown exit condition inside the processing
+          // loop: with the peer gone, requests may never finalize, and without
+          // this the thread would spin here forever (observed: process crashed
+          // at exit because this detached thread was still running).
+          if (areTransmittersDone && shutting_down_.load(std::memory_order_acquire)) {
+              break;
+          }
           // Process the queue entry
           for (auto it = pending_send_requests_.begin(); it != pending_send_requests_.end(); ) {
               // Dereference the iterator to get to the pair
@@ -294,6 +538,17 @@ static void server_conn_handle_cb(ucp_conn_request_h conn_request, void* arg) {
   (void)port_str;  // avoid unused variable warning
   ucs_status_t status;
 
+  // Graceful shutdown: reject new connections instead of accepting them.
+  if (rx_context->is_shutting_down.load(std::memory_order_acquire)) {
+      GXF_LOG_INFO("Shutdown in progress: rejecting incoming connection request");
+      status = ucp_listener_reject(context->listener, conn_request);
+      if (status != UCS_OK) {
+          GXF_LOG_ERROR("Server failed to reject a connection request during "
+                        "shutdown: (%s)", ucs_status_string(status));
+      }
+      return;
+  }
+
   attr.field_mask = UCP_CONN_REQUEST_ATTR_FIELD_CLIENT_ADDR;
   status = ucp_conn_request_query(conn_request, &attr);
   if (status != UCS_OK) {
@@ -337,7 +592,7 @@ gxf_result_t UcxContext::init_tx(Handle<UcxTransmitter> tx) {
           tx_context->ucp_worker, &tx_context->ep,
           &tx_context->connection_closed, reconnect_.get(),
           cpu_data_only_.get(), enable_async_.get(), &pending_send_requests_,
-          &cv_, &mtx_);
+          &cv_, &mtx_, &shutting_down_);
   if (result != GXF_SUCCESS) {
       goto destroy_worker;
   }
@@ -412,6 +667,10 @@ ucs_status_t ucp_am_data_legacy_cb(void* arg, const void* header, size_t header_
                                    const ucp_am_recv_param_t* param) {
   ucx_am_data_desc* am_desc;
   UcxReceiverContext* rx_context = static_cast<UcxReceiverContext*>(arg);
+  // Graceful shutdown: drop incoming messages (UCS_OK lets UCX release the data)
+  if (rx_context->is_shutting_down.load(std::memory_order_acquire)) {
+      return UCS_OK;
+  }
   am_desc = static_cast<ucx_am_data_desc*>(&rx_context->am_data_desc);
   am_desc->header = malloc(header_length);
   memcpy(am_desc->header, header, header_length);
@@ -427,6 +686,10 @@ ucs_status_t ucp_am_data_cb(void* arg, const void* header, size_t header_length,
                             const ucp_am_recv_param_t* param) {
   ucx_am_data_desc* am_desc;
   UcxReceiverContext* rx_context = static_cast<UcxReceiverContext*>(arg);
+  // Graceful shutdown: drop incoming messages (UCS_OK lets UCX release the data)
+  if (rx_context->is_shutting_down.load(std::memory_order_acquire)) {
+      return UCS_OK;
+  }
   am_desc = static_cast<ucx_am_data_desc*>(&rx_context->am_data_desc);
   if ((!am_desc->complete) && (rx_context->headers.size() == 0)) {
       am_desc->header = malloc(header_length);
@@ -554,7 +817,7 @@ gxf_result_t UcxContext::init_rx(Handle<UcxReceiver> rx) {
     }
     result = rx_context->rx->init_context(rx_context->ucp_worker,
             &rx_context->am_data_desc, 0, cpu_data_only_.get(),
-            enable_async_.get());
+            enable_async_.get(), &shutting_down_);
     if (result != GXF_SUCCESS) {
         goto destroy_data_worker;
     }
@@ -633,7 +896,7 @@ gxf_result_t UcxContext::init_connection(std::shared_ptr<UcxReceiverContext> rx_
 
   result = rx_context->rx->init_context(rx_context->ucp_worker,
           &rx_context->am_data_desc, efd_signal_, cpu_data_only_.get(),
-          enable_async_.get());
+          enable_async_.get(), &shutting_down_);
   if (result != GXF_SUCCESS) {
       goto destroy_worker;
   }
@@ -726,7 +989,7 @@ UcxContext::am_desc_to_iov(std::shared_ptr<UcxReceiverContext> rx_context) {
 
 void UcxContext::start_server_async_queue() {
   while (1) {
-      if ((close_server_loop_) ||
+      if ((close_server_loop_) || shutting_down_.load(std::memory_order_acquire) ||
               ((!reconnect_.get()) && (rx_conns_.closed == rx_conns_.total))) {
           break;
       }
@@ -966,6 +1229,13 @@ gxf_result_t UcxContext::wait_for_event() {
  */
 
 gxf_result_t UcxContext::init_context() {
+  // Called via NetworkRouter::addNetworkContext (both modes) and again from
+  // initialize() in synchronous mode; make it idempotent so the ucp context
+  // (and the async epoll fds) are created exactly once.
+  std::lock_guard<std::mutex> lock(context_init_mutex_);
+  if (ucp_context_ != nullptr) {
+    return GXF_SUCCESS;
+  }
   ucp_params_t ucp_params;
   ucs_status_t status;
 
@@ -974,7 +1244,9 @@ gxf_result_t UcxContext::init_context() {
   ucp_params.name       = "client_server";
   ucp_params.features = UCP_FEATURE_AM;
 
-  if (enable_async_.get() && epoll_fd_ != -1) {
+  // 4.1 read the uninitialized epoll_fd_ here (!= -1 by luck); the intent is
+  // to request wakeup support whenever async epoll mode is in use.
+  if (enable_async_.get()) {
       ucp_params.features |= UCP_FEATURE_WAKEUP;
   }
   ucp_params.field_mask |= UCP_PARAM_FIELD_MT_WORKERS_SHARED;

@@ -182,6 +182,12 @@ gxf_result_t UcxTransmitter::check_connection_and_connect() {
     if (!*connection_closed_p_) {
         return GXF_SUCCESS;
     }
+    // Graceful shutdown: a closed connection is expected once shutdown was
+    // initiated; do not attempt to re-establish it.
+    if (shutting_down_ && shutting_down_->load(std::memory_order_acquire)) {
+        GXF_LOG_DEBUG("Connection closed during UCX shutdown; not reconnecting.");
+        return GXF_FAILURE;
+    }
     if (reconnect_) {
         GXF_LOG_WARNING("Connection closed on send. Trying to reconnect...");
         result = create_client_connection_with_retries();
@@ -201,6 +207,12 @@ gxf_result_t UcxTransmitter::check_connection_and_connect() {
  */
 gxf_result_t UcxTransmitter::send_am(Entity& entity) {
     gxf_result_t result;
+    // Graceful shutdown: the endpoint/worker may already be closed; refuse new
+    // sends (the consumer treats send errors during shutdown as expected).
+    if (shutting_down_ && shutting_down_->load(std::memory_order_acquire)) {
+        GXF_LOG_DEBUG("UcxTransmitter dropping message: shutdown in progress");
+        return GXF_FAILURE;
+    }
     if (!cpu_data_only_) {
         cudaError_t error{cudaSuccess};
         error = cudaSetDevice(dev_id_);
@@ -253,6 +265,28 @@ gxf_result_t UcxTransmitter::send_am(Entity& entity) {
                                                                         msg_length, &params));
         {
             std::lock_guard<std::mutex> lock(*mtx_);
+            // Graceful shutdown race: the shutdown flag may have been set after
+            // the check at the top of this function. Re-check under the same
+            // lock the tx thread holds while draining/canceling, so that no
+            // request is ever enqueued after shutdown was initiated (otherwise
+            // it would linger forever — the tx thread has already exited).
+            if (shutting_down_ && shutting_down_->load(std::memory_order_acquire)) {
+                if (request != NULL && !UCS_PTR_IS_ERR(request)) {
+                    ucp_request_cancel(ucp_worker_, request);
+                    for (int i = 0; i < WORKER_PROGRESS_ITERATIONS; i++) {
+                        ucp_worker_progress(ucp_worker_);
+                    }
+                    if (ucp_request_check_status(request) != UCS_INPROGRESS) {
+                        ucp_request_free(request);
+                    } else {
+                        GXF_LOG_ERROR("UcxTransmitter: racing send request did not "
+                                      "cancel inline; leaking it (shutdown in progress)");
+                    }
+                }
+                delete[] header_copy;
+                delete ctx;
+                return GXF_FAILURE;
+            }
             send_queue_->push_back({entity, ucp_worker_, request, ctx, ++index});
         }
         cv_->notify_one();
@@ -313,6 +347,10 @@ gxf_result_t UcxTransmitter::create_client_connection_with_retries() {
     int interval_sec = 1;
     auto start_time = std::chrono::steady_clock::now();
     while ((*connection_closed_p_) && (connection_retries < maximum_connection_retries_)) {
+        // Abort retries promptly when shutdown was initiated
+        if (shutting_down_ && shutting_down_->load(std::memory_order_acquire)) {
+            return GXF_FAILURE;
+        }
         // check if timer interval has elapsed
         auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::steady_clock::now() - start_time).count();
@@ -350,7 +388,8 @@ gxf_result_t UcxTransmitter::init_context(ucp_context_h ucp_context,
                                           bool enable_async,
                                           std::list<UcxTransmitterSendContext_>* send_queue,
                                           std::condition_variable* cv,
-                                          std::mutex* mtx) {
+                                          std::mutex* mtx,
+                                          std::atomic<bool>* shutting_down) {
     if (ucp_context == NULL) {
         GXF_LOG_ERROR("ucp context is NULL");
         return GXF_FAILURE;
@@ -374,6 +413,7 @@ gxf_result_t UcxTransmitter::init_context(ucp_context_h ucp_context,
     reconnect_ = reconnect;
     enable_async_ = enable_async;
     cpu_data_only_ = cpu_data_only;
+    shutting_down_ = shutting_down;
     return create_client_connection_with_retries();
 }
 

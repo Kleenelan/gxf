@@ -55,7 +55,8 @@ typedef struct test_req {
     CONNECTED,
     RESET,
     CLOSED,
-    RECEIVE_MESSAGE
+    RECEIVE_MESSAGE,
+    CLOSING
   } ConnState;
 
 #define CHECK_RETURN_FAILURE(value) \
@@ -89,6 +90,23 @@ ucs_status_t request_wait_once(ucp_worker_h ucp_worker, void* request,
                                  test_req_t* ctx);
 
 ucs_status_t process_request(ucp_worker_h ucp_worker, void* req);
+
+/// @brief Wait for a UCX request to complete with timeout
+/// @param ucp_worker The UCX worker
+/// @param request The UCX request handle
+/// @param ctx The request context
+/// @param timeout_ms Timeout in milliseconds (0 = no timeout, wait indefinitely)
+/// @return UCS_OK on success, UCS_ERR_TIMED_OUT on timeout, other UCS error on failure
+ucs_status_t request_wait_with_timeout(ucp_worker_h ucp_worker, void* request,
+                                       test_req_t* ctx, int64_t timeout_ms);
+
+/// @brief Process a UCX request with timeout
+/// @param ucp_worker The UCX worker
+/// @param req The UCX request handle
+/// @param timeout_ms Timeout in milliseconds (0 = no timeout, wait indefinitely)
+/// @return UCS_OK on success, UCS_ERR_TIMED_OUT on timeout, other UCS error on failure
+ucs_status_t process_request_with_timeout(ucp_worker_h ucp_worker, void* req,
+                                          int64_t timeout_ms);
 
 }  // namespace gxf
 }  // namespace nvidia

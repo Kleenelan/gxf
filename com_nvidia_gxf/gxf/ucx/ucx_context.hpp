@@ -22,9 +22,11 @@
 #include <ucp/api/ucp.h>
 #include <unistd.h>
 #include <atomic>
+#include <chrono>
 #include <list>
 #include <memory>
 #include <queue>
+#include <thread>
 
 #include "gxf/std/network_context.hpp"
 #include "gxf/std/queue.hpp"
@@ -53,6 +55,7 @@ typedef struct UcxReceiverContext {
     ucp_ep_h                ep;
     ConnState               conn_state;
     ucx_am_data_desc        am_data_desc;
+    std::atomic<bool>       is_shutting_down{false};  ///< Flag to protect against callbacks during shutdown
     FixedVector<std::shared_ptr<ucx_am_data_desc>, kMaxRxContexts> headers;
     ucp_worker_h            ucp_worker;
     int                     worker_fd;  ///< epoll fd used only when enable_async_ == true
@@ -73,6 +76,16 @@ typedef struct ConnManager {
     int closed;
 } ConnManager_;
 
+/// @brief Status information for UCX shutdown progress
+/// Used for diagnostics and monitoring shutdown state
+struct UcxShutdownStatus {
+    bool shutting_down;       ///< true if shutdown has been initiated
+    bool tx_thread_running;   ///< true if TX thread is still joinable/running
+    bool rx_thread_running;   ///< true if RX thread is still joinable/running
+    size_t pending_tx_requests;  ///< Number of pending transmit requests
+    size_t tx_contexts_count;    ///< Number of TX contexts
+    size_t rx_contexts_count;    ///< Number of RX contexts
+};
 
 // The class which initializes UCX context and connection worker
 class UcxContext : public NetworkContext {
@@ -83,15 +96,26 @@ class UcxContext : public NetworkContext {
     Expected<void> addRoutes(const Entity& entity) override;
     Expected<void> removeRoutes(const Entity& entity) override;
 
-    // GXF 5.7.1 compatibility stub: upstream, initiate_shutdown() starts a
-    // graceful UCX shutdown (drain pending requests, close endpoints). This
-    // 4.1-based implementation only records the flag; teardown proceeds as
-    // before in deinitialize().
+    /// @brief Initiates graceful shutdown of UCX connections
+    ///
+    /// Sets the shutting_down_ flag and signals TX/RX threads to exit.
+    /// This allows pending operations to complete within the shutdown timeout
+    /// rather than blocking indefinitely.
+    ///
+    /// @return GXF_SUCCESS on success
     gxf_result_t initiate_shutdown();
+
+    /// @brief Check if shutdown has been initiated
+    /// @return true if shutdown is in progress
     bool is_shutting_down() const { return shutting_down_.load(); }
+
+    /// @brief Get current shutdown status for diagnostics
+    /// @return UcxShutdownStatus struct with current state information
+    UcxShutdownStatus get_shutdown_status() const;
 
  private:
     gxf_result_t init_context();
+    ucp_context_h get_initialized_context(const char* operation);
     gxf_result_t init_tx(Handle<UcxTransmitter> tx);
     gxf_result_t init_rx(Handle<UcxReceiver> rx);
 
@@ -119,16 +143,29 @@ class UcxContext : public NetworkContext {
             bool is_listener);
     void copy_header_to_am_desc(std::shared_ptr<UcxReceiverContext> rx_context);
 
+    /// @brief Join a thread with timeout, detaching if timeout expires
+    /// @param thread The thread to join
+    /// @param thread_name Name for logging purposes
+    /// @param timeout_ms Timeout in milliseconds
+    /// @return true if thread joined successfully, false if timeout expired (thread detached)
+    bool join_thread_with_timeout(std::thread& thread, const char* thread_name, uint64_t timeout_ms);
+
     bool close_server_loop_;
     FixedVector<std::shared_ptr<UcxReceiverContext>, kMaxRxContexts> rx_contexts_;
     FixedVector<std::shared_ptr<UcxTransmitterContext>, kMaxRxContexts> tx_contexts_;
-    ucp_context_h ucp_context_;
+    ucp_context_h ucp_context_ = nullptr;
+    std::mutex context_init_mutex_;
     Parameter<Handle<EntitySerializer>> entity_serializer_;
     Parameter<bool> reconnect_;
     Resource<Handle<GPUDevice>> gpu_device_;
     Parameter<bool> cpu_data_only_;
     Parameter<bool> enable_async_;
+    /// @brief Timeout in milliseconds for shutdown operations (thread joins, pending requests)
+    Parameter<uint64_t> shutdown_timeout_ms_;
     int32_t dev_id_ = 0;
+
+    /// @brief Flag indicating shutdown has been initiated - threads should exit gracefully
+    std::atomic<bool> shutting_down_{false};
 
     std::thread t_;  ///< server thread used only when enable_async_ == false
 
@@ -140,10 +177,13 @@ class UcxContext : public NetworkContext {
     std::mutex mtx_;
     std::condition_variable cv_;
     bool areTransmittersDone = false;
-    int epoll_fd_;
-    int efd_signal_;
-    // Set by initiate_shutdown() (GXF 5.7.1 compatibility stub)
-    std::atomic<bool> shutting_down_{false};
+    int epoll_fd_ = -1;
+    int efd_signal_ = -1;
+    // Set by initiate_shutdown() when a thread did not exit within the shutdown
+    // timeout and was detached: the corresponding contexts are deliberately
+    // leaked (never destroyed) because the detached thread may still use them.
+    bool tx_contexts_abandoned_ = false;
+    bool rx_contexts_abandoned_ = false;
 };
 
 }  // namespace gxf

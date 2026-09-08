@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+#include <atomic>
 #include <condition_variable>
 #include <list>
 #include <memory>
@@ -53,7 +54,8 @@ class UcxTransmitter : public Transmitter {
                             bool enable_async,
                             std::list<UcxTransmitterSendContext_>* send_queue,
                             std::condition_variable* cv,
-                            std::mutex* mtx);
+                            std::mutex* mtx,
+                            std::atomic<bool>* shutting_down = nullptr);
 
   gxf_result_t registerInterface(Registrar* registrar) override;
 
@@ -116,6 +118,7 @@ class UcxTransmitter : public Transmitter {
   int index = 0;
   int* id_;
   int enable_async_ = true;
+  std::atomic<bool>* shutting_down_ = nullptr;  ///< Pointer to UcxContext's shutdown flag
 };
 
 }  // namespace gxf

@@ -16,6 +16,7 @@
  */
 
 #include <ucp/api/ucp.h>
+#include <atomic>
 #include <deque>
 #include <list>
 #include <memory>
@@ -49,7 +50,8 @@ class UcxReceiver : public Receiver {
   gxf_result_t deinitialize() override;
   gxf_result_t init_context(ucp_worker_h  ucp_worker,
                             ucx_am_data_desc* am_data_desc, int fd,
-                            bool cpu_data_only, bool enable_async);
+                            bool cpu_data_only, bool enable_async,
+                            std::atomic<bool>* shutting_down = nullptr);
 
   gxf_result_t pop_abi(gxf_uid_t* uid) override;
 
@@ -102,6 +104,7 @@ class UcxReceiver : public Receiver {
   bool cpu_data_only_ = false;
   std::list<std::pair<void*, test_req_t*>> requests;
   int enable_async_ = true;
+  std::atomic<bool>* shutting_down_ = nullptr;  ///< Pointer to UcxContext's shutdown flag
 };
 
 }  // namespace gxf
