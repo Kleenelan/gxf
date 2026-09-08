@@ -16,7 +16,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 PYBIND11_MODULE(allocator_pybind, m) {
   pybind11::class_<nvidia::gxf::Allocator>(m, "Allocator")
       .def("get_gxf_type", []() { return "nvidia::gxf::Allocator"; })
-      .def("free", &nvidia::gxf::Allocator::free)
+      .def("free", [](nvidia::gxf::Allocator& self, void* pointer) {
+             return self.free(static_cast<nvidia::byte*>(pointer));
+           })
       .def("allocate", &nvidia::gxf::Allocator::allocate)
       .def("get", [](gxf_context_t context, gxf_uid_t cid, const char* name) {
       auto maybe_allocator = nvidia::gxf::CreateHandleFromString<nvidia::gxf::Allocator>(context, cid, name);

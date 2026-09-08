@@ -54,6 +54,7 @@ class RMMAllocator : public CudaAllocator {
                                   cudaStream_t stream) override;
   gxf_result_t free_async_abi(void* pointer, cudaStream_t stream) override;
   gxf_result_t free_abi(void* pointer) override;
+  gxf_result_t free_abi(void* pointer, void* stream) override;
 
   Expected<size_t> get_pool_size(MemoryStorageType type) const override;
 

@@ -440,7 +440,8 @@ TEST(video, wrapMemory) {
   void *pointer_ = this;
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                 &release_func_params_match](void* pointer) {
+                                                 &release_func_params_match](void* pointer,
+                                                                                   void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };

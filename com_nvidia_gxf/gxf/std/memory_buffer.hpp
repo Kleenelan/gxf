@@ -17,6 +17,7 @@
 #ifndef NVIDIA_GXF_STD_MEMORY_BUFFER_HPP_
 #define NVIDIA_GXF_STD_MEMORY_BUFFER_HPP_
 
+#include <functional>
 #include <utility>
 
 #include "common/byte.hpp"
@@ -26,6 +27,18 @@
 
 namespace nvidia {
 namespace gxf {
+
+// Lifecycle state of a CUDA stream associated with a MemoryBuffer.
+// kNone    - No stream has been associated with this buffer.
+// kPending - A stream has been set and the buffer may be freed asynchronously
+//            once the stream completes pending work.
+// kReady   - Stream-ordered work is known to be complete (used internally by
+//            stream-aware allocators).
+enum class StreamState {
+  kNone = 0,
+  kPending,
+  kReady,
+};
 
 class MemoryBuffer {
  public:
@@ -39,25 +52,32 @@ class MemoryBuffer {
     size_ = other.size_;
     storage_type_ = other.storage_type_;
     pointer_ = other.pointer_;
+    stream_ = other.stream_;
+    stream_state_ = other.stream_state_;
     release_func_ =  std::move(other.release_func_);
 
     other.pointer_ = nullptr;
+    other.stream_ = nullptr;
+    other.stream_state_ = StreamState::kNone;
     other.release_func_ = nullptr;
 
     return *this;
   }
 
   // Type of the callback function to release memory passed to the MemoryBuffer
-  // using the wrapMemory method
-  using release_function_t = std::function<Expected<void> (void* pointer)>;
+  // using the wrapMemory method. The stream argument is the CUDA stream that
+  // was associated with the buffer via setStream() (may be nullptr).
+  using release_function_t = std::function<Expected<void> (void* pointer, void* stream)>;
 
   Expected<void> freeBuffer() {
     if (release_func_ && pointer_) {
-      const Expected<void> result = release_func_(pointer_);
+      const Expected<void> result = release_func_(pointer_, stream_);
       if (!result) { return ForwardError(result); }
 
       release_func_ = nullptr;
       pointer_ = nullptr;
+      stream_ = nullptr;
+      stream_state_ = StreamState::kNone;
       size_ = 0;
     }
 
@@ -66,15 +86,21 @@ class MemoryBuffer {
 
   virtual ~MemoryBuffer() { freeBuffer(); }
 
-  // GXF 5.7.1 compatibility stub: upstream, setStream() records the CUDA stream
-  // that will operate on this buffer so the allocator can defer the free until
-  // the stream completes. This 4.1-based runtime has no stream-aware deferred
-  // deallocation, so this is intentionally a no-op (memory is freed immediately
-  // upon release, exactly as GXF 4.1 always behaved).
-  void setStream(void* stream) { (void)stream; }
+  // Records the CUDA stream that will operate on this buffer. The allocator
+  // can use this stream to defer the free until the stream completes.
+  void setStream(void* stream) {
+    stream_ = stream;
+    stream_state_ = (stream_ != nullptr) ? StreamState::kPending : StreamState::kNone;
+  }
+
+  // Returns the stream associated with this buffer (may be nullptr).
+  void* stream() const { return stream_; }
+
+  // Returns the stream state of this buffer.
+  StreamState streamState() const { return stream_state_; }
 
   Expected<void> resize(Handle<Allocator> allocator, uint64_t size,
-                         MemoryStorageType storage_type) {
+                         MemoryStorageType storage_type, void* stream = nullptr) {
     const auto result = freeBuffer();
     if (!result) {
       GXF_LOG_ERROR("Failed to free memory. Error code: %s", GxfResultStr(result.error()));
@@ -92,9 +118,10 @@ class MemoryBuffer {
     storage_type_ = storage_type;
     pointer_ = maybe.value();
     size_ = size;
+    setStream(stream);
 
-    release_func_ = [allocator] (void *data) {
-      return allocator->free(reinterpret_cast<byte*>(data));
+    release_func_ = [allocator] (void *data, void *release_stream) {
+      return allocator->free(reinterpret_cast<byte*>(data), release_stream);
     };
 
     return Success;
@@ -102,7 +129,8 @@ class MemoryBuffer {
 
   // Wrap existing memory inside the MemoryBuffer. A callback function of type
   // release_function_t may be passed that will be called when the MemoryBuffer
-  // wants to release the memory.
+  // wants to release the memory. The callback receives the buffer's associated
+  // stream as its second argument.
   Expected<void> wrapMemory(void* pointer, uint64_t size,
                             MemoryStorageType storage_type,
                             release_function_t release_func) {
@@ -132,6 +160,8 @@ class MemoryBuffer {
   uint64_t size_ = 0;
   byte* pointer_ = nullptr;
   MemoryStorageType storage_type_ = MemoryStorageType::kHost;
+  void* stream_ = nullptr;
+  StreamState stream_state_ = StreamState::kNone;
   release_function_t release_func_ = nullptr;
 };
 

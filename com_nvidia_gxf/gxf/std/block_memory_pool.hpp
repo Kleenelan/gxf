@@ -21,6 +21,9 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <vector>
+
+#include "cuda_runtime.h"  // NOLINT
 
 #include "gxf/std/allocator.hpp"
 #include "gxf/std/resources.hpp"
@@ -42,8 +45,12 @@ class BlockMemoryPool : public Allocator {
   gxf_result_t is_available_abi(uint64_t size) override;
   gxf_result_t allocate_abi(uint64_t size, int32_t type, void** pointer) override;
   gxf_result_t free_abi(void* pointer) override;
+  gxf_result_t free_abi(void* pointer, void* stream) override;
   gxf_result_t deinitialize() override;
   uint64_t block_size_abi() const override;
+
+  // Reclaims blocks whose deferred CUDA events have completed.
+  void reclaimCompletedDeferredBlocks();
 
   // Returns the storage type of the memory blocks
   MemoryStorageType storage_type() const {
@@ -64,6 +71,16 @@ class BlockMemoryPool : public Allocator {
   void* pointer_;
   std::unique_ptr<FixedPoolUint64> stack_;
   std::mutex stack_mutex_;
+
+  // Deferred block entry: a block index together with a CUDA event recorded on
+  // the stream that was using the block. The block is returned to the pool only
+  // after the event has completed.
+  struct DeferredBlock {
+    uint64_t index;
+    cudaEvent_t event;
+  };
+  std::vector<DeferredBlock> deferred_blocks_;
+
   // Holds lifecycle stage of the allocator
   std::atomic<AllocatorStage> stage_{AllocatorStage::kUninitialized};
   int32_t dev_id_ = -1;

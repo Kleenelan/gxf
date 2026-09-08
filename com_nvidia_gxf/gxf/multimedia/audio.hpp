@@ -101,12 +101,12 @@ class AudioBuffer {
   template <AudioFormat A>
   Expected<void> resize(uint32_t channels, uint32_t samples, uint32_t sampling_rate,
                         AudioLayout layout, MemoryStorageType storage_type,
-                        Handle<Allocator> allocator) {
+                        Handle<Allocator> allocator, void* stream = nullptr) {
     AudioTypeTraits<A> audio_type;
     uint32_t bytes_per_sample = std::ceil(audio_type.width / 8);
     AudioBufferInfo buffer_info{channels,         samples,          sampling_rate,
                                 bytes_per_sample, audio_type.value, layout};
-    return resizeCustom(buffer_info, storage_type, allocator);
+    return resizeCustom(buffer_info, storage_type, allocator, stream);
   }
 
   // Type of the callback function to release memory passed to the AudioFrame using the
@@ -134,7 +134,7 @@ class AudioBuffer {
   // Resizes the audio frame and allocates the corresponding memory with the allocator provided
   // Any data previously stored in the frame would be freed
   Expected<void> resizeCustom(AudioBufferInfo buffer_info, MemoryStorageType storage_type,
-                              Handle<Allocator> allocator);
+                              Handle<Allocator> allocator, void* stream = nullptr);
 
  private:
   AudioBufferInfo buffer_info_;

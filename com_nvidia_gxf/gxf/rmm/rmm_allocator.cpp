@@ -256,13 +256,18 @@ gxf_result_t RMMAllocator::free_async_abi(void* pointer, cudaStream_t stream) {
 }
 
 gxf_result_t RMMAllocator::free_abi(void* pointer) {
+  return free_abi(pointer, nullptr);
+}
+
+gxf_result_t RMMAllocator::free_abi(void* pointer, void* stream) {
   try {
     const auto it = pool_map.find(pointer);
     if (it != pool_map.end()) {
       auto size = it->second.first;
       auto mem_type = it->second.second;
-      if (mem_type == MemoryStorageType::kDevice && stream_) {
-        pool_mr_device->deallocate(pointer, size, stream_);
+      if (mem_type == MemoryStorageType::kDevice) {
+        cudaStream_t s = (stream != nullptr) ? static_cast<cudaStream_t>(stream) : stream_;
+        pool_mr_device->deallocate(pointer, size, s);
       } else {
         pool_mr_host->deallocate(pointer, size);
       }

@@ -138,6 +138,9 @@ gxf_result_t BlockMemoryPool::allocate_abi(uint64_t size, int32_t type, void** p
     return GXF_ARGUMENT_INVALID;
   }
 
+  // Reclaim blocks whose deferred events have completed before checking availability.
+  reclaimCompletedDeferredBlocks();
+
   std::lock_guard<std::mutex> lock(stack_mutex_);
   if (!stack_) {
     return GXF_CONTRACT_INVALID_SEQUENCE;
@@ -157,6 +160,10 @@ gxf_result_t BlockMemoryPool::allocate_abi(uint64_t size, int32_t type, void** p
 }
 
 gxf_result_t BlockMemoryPool::free_abi(void* void_pointer) {
+  return free_abi(void_pointer, nullptr);
+}
+
+gxf_result_t BlockMemoryPool::free_abi(void* void_pointer, void* stream) {
   uint8_t* pointer = static_cast<uint8_t*>(void_pointer);
   if (pointer < pointer_) {
     // invalid pointer: not part of the pool
@@ -172,21 +179,111 @@ gxf_result_t BlockMemoryPool::free_abi(void* void_pointer) {
     // invalid pointer: invalid chunk pointer
     return GXF_ARGUMENT_INVALID;
   }
-  {
-    std::lock_guard<std::mutex> lock(stack_mutex_);
-    if (index >= stack_->capacity()) {
-      // invalid pointer: not part of the pool
-      return GXF_ARGUMENT_OUT_OF_RANGE;
-    }
-    const auto result = stack_->push(index);
-    if (!result) {
-      return GXF_FAILURE;
-    }
+
+  std::lock_guard<std::mutex> lock(stack_mutex_);
+  if (index >= stack_->capacity()) {
+    // invalid pointer: not part of the pool
+    return GXF_ARGUMENT_OUT_OF_RANGE;
   }
+
+  if (stream == nullptr) {
+    const auto result = stack_->push(index);
+    return result ? GXF_SUCCESS : GXF_FAILURE;
+  }
+
+  // Stream-aware deferred free: record an event on the target stream and queue
+  // the block until the event completes.
+  cudaSetDevice(dev_id_);
+  cudaEvent_t event;
+  cudaError_t error = cudaEventCreate(&event);
+  if (error != cudaSuccess) {
+    GXF_LOG_ERROR("Failure in cudaEventCreate. cuda_error: %s, error_str: %s",
+                  cudaGetErrorName(error), cudaGetErrorString(error));
+    // Fall back to immediate reclaim to avoid leaking the block.
+    stack_->push(index);
+    return GXF_FAILURE;
+  }
+
+  error = cudaEventRecord(event, static_cast<cudaStream_t>(stream));
+  if (error != cudaSuccess) {
+    GXF_LOG_ERROR("Failure in cudaEventRecord. cuda_error: %s, error_str: %s",
+                  cudaGetErrorName(error), cudaGetErrorString(error));
+    cudaEventDestroy(event);
+    stack_->push(index);
+    return GXF_FAILURE;
+  }
+
+  deferred_blocks_.push_back(DeferredBlock{index, event});
   return GXF_SUCCESS;
 }
 
+void BlockMemoryPool::reclaimCompletedDeferredBlocks() {
+  if (deferred_blocks_.empty()) {
+    return;
+  }
+
+  // Snapshot the deferred queue and query events outside the lock.
+  std::vector<DeferredBlock> snapshot;
+  {
+    std::lock_guard<std::mutex> lock(stack_mutex_);
+    snapshot.swap(deferred_blocks_);
+  }
+
+  cudaSetDevice(dev_id_);
+  std::vector<DeferredBlock> pending;
+  pending.reserve(snapshot.size());
+  for (auto& block : snapshot) {
+    const cudaError_t error = cudaEventQuery(block.event);
+    if (error == cudaSuccess) {
+      std::lock_guard<std::mutex> lock(stack_mutex_);
+      const auto result = stack_->push(block.index);
+      if (!result) {
+        GXF_LOG_ERROR("Failed to push reclaimed block index %lu back to pool", block.index);
+      }
+      cudaEventDestroy(block.event);
+    } else if (error == cudaErrorNotReady) {
+      pending.push_back(block);
+    } else {
+      GXF_LOG_ERROR("Failure in cudaEventQuery. cuda_error: %s, error_str: %s",
+                    cudaGetErrorName(error), cudaGetErrorString(error));
+      // Reclaim the block anyway to avoid losing it on persistent errors.
+      std::lock_guard<std::mutex> lock(stack_mutex_);
+      const auto result = stack_->push(block.index);
+      if (!result) {
+        GXF_LOG_ERROR("Failed to push reclaimed block index %lu back to pool", block.index);
+      }
+      cudaEventDestroy(block.event);
+    }
+  }
+
+  if (!pending.empty()) {
+    std::lock_guard<std::mutex> lock(stack_mutex_);
+    deferred_blocks_.insert(deferred_blocks_.end(), pending.begin(), pending.end());
+  }
+}
+
 gxf_result_t BlockMemoryPool::deinitialize() {
+  // Reclaim any deferred blocks. For blocks whose events have not yet completed,
+  // synchronize the event to ensure the memory can be safely released.
+  {
+    std::lock_guard<std::mutex> lock(stack_mutex_);
+    cudaSetDevice(dev_id_);
+    for (const auto& block : deferred_blocks_) {
+      const cudaError_t error = cudaEventSynchronize(block.event);
+      if (error != cudaSuccess) {
+        GXF_LOG_ERROR("Failure in cudaEventSynchronize during deinitialize. cuda_error: %s, "
+                      "error_str: %s", cudaGetErrorName(error), cudaGetErrorString(error));
+      }
+      const auto result = stack_->push(block.index);
+      if (!result) {
+        GXF_LOG_ERROR("Failed to push block index %lu back to pool during deinitialize",
+                      block.index);
+      }
+      cudaEventDestroy(block.event);
+    }
+    deferred_blocks_.clear();
+  }
+
   if (stack_->size() != num_blocks_.get()) {
     GXF_LOG_WARNING("BlockMemoryPool pool %s still has unreleased memory", name());
   }

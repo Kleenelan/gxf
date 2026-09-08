@@ -324,9 +324,9 @@ class Tensor {
   // Memory will be allocated with the given allocator.
   template <typename T>
   Expected<void> reshape(const Shape& shape, MemoryStorageType storage_type,
-                         Handle<Allocator> allocator) {
+                         Handle<Allocator> allocator, void* stream = nullptr) {
     return reshapeCustom(shape, PrimitiveTypeTraits<T>::value, PrimitiveTypeTraits<T>::size,
-                         Unexpected{GXF_UNINITIALIZED_VALUE}, storage_type, allocator);
+                         Unexpected{GXF_UNINITIALIZED_VALUE}, storage_type, allocator, stream);
   }
   // Changes the shape and type of the tensor. Memory will be allocated with the given allocator
   // strides: The number of bytes that each slide takes for each dimension (alignment).
@@ -334,7 +334,8 @@ class Tensor {
   Expected<void> reshapeCustom(const Shape& shape,
                                PrimitiveType element_type, uint64_t bytes_per_element,
                                Expected<stride_array_t> strides,
-                               MemoryStorageType storage_type, Handle<Allocator> allocator);
+                               MemoryStorageType storage_type, Handle<Allocator> allocator,
+                               void* stream = nullptr);
 
   // Type of the callback function to release memory passed to the tensor using the
   // wrapMemory method

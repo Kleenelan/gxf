@@ -17,7 +17,7 @@ namespace gxf {
 
 Expected<void> AudioBuffer::resizeCustom(AudioBufferInfo buffer_info,
                                          MemoryStorageType storage_type,
-                                         Handle<Allocator> allocator) {
+                                         Handle<Allocator> allocator, void* stream) {
   if (!allocator) { return Unexpected{GXF_ARGUMENT_NULL}; }
 
   if ((buffer_info.audio_layout == AudioLayout::GXF_AUDIO_LAYOUT_CUSTOM) ||
@@ -31,7 +31,7 @@ Expected<void> AudioBuffer::resizeCustom(AudioBufferInfo buffer_info,
   auto result = memory_buffer_.freeBuffer();
   if (!result) { return ForwardError(result); }
 
-  result = memory_buffer_.resize(allocator, size, storage_type);
+  result = memory_buffer_.resize(allocator, size, storage_type, stream);
   if (!result) { return ForwardError(result); }
 
   return Success;

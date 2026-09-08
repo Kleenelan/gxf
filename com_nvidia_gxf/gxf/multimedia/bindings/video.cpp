@@ -165,10 +165,11 @@ PYBIND11_MODULE(video_pybind, m) {
                  pybind11::buffer buffer = _image.attr("__array__")();
                  pybind11::buffer_info buffer_info = buffer.request();
                  data = buffer_info.ptr;
-                 nvidia::gxf::MemoryBuffer::release_function_t release_func = [](void* pointer) {
-                   GXF_LOG_DEBUG("Video Buffer object deleted. No memory released");
-                   return nvidia::gxf::Success;
-                 };
+                  nvidia::gxf::MemoryBuffer::release_function_t release_func = [](void* pointer,
+                                                                                   void* /*stream*/) {
+                    GXF_LOG_DEBUG("Video Buffer object deleted. No memory released");
+                    return nvidia::gxf::Success;
+                  };
                  auto allocator_handle = nvidia::gxf::Handle<nvidia::gxf::Allocator>::Create(
                      allocator->context(), allocator->cid());
                  if (!allocator_handle) {

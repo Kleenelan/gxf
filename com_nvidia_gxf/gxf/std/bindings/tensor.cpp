@@ -1020,7 +1020,8 @@ PYBIND11_MODULE(tensor_pybind, m) {
              else
                element_type = nvidia::gxf::PrimitiveType::kCustom;
 
-             nvidia::gxf::MemoryBuffer::release_function_t release_func = [](void* pointer) {
+             nvidia::gxf::MemoryBuffer::release_function_t release_func = [](void* pointer,
+                                                                              void* /*stream*/) {
                GXF_LOG_DEBUG("Tensor object deleted. No memory released");
                return nvidia::gxf::Success;
              };

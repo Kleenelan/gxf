@@ -104,7 +104,8 @@ Tensor::Tensor(std::shared_ptr<DLManagedTensorContext> dl_ctx) {
 Expected<void> Tensor::reshapeCustom(const Shape& shape,
                                      PrimitiveType element_type, uint64_t bytes_per_element,
                                      Expected<stride_array_t> strides,
-                                     MemoryStorageType storage_type, Handle<Allocator> allocator) {
+                                     MemoryStorageType storage_type, Handle<Allocator> allocator,
+                                     void* stream) {
   if (!allocator) {
     return Unexpected{GXF_ARGUMENT_NULL};
   }
@@ -118,7 +119,8 @@ Expected<void> Tensor::reshapeCustom(const Shape& shape,
   bytes_per_element_ = bytes_per_element;
   strides_ = strides ? *strides : ComputeTrivialStrides(shape_, bytes_per_element_);
 
-  result = memory_buffer_.resize(allocator, bytes_per_element * element_count_, storage_type);
+  result = memory_buffer_.resize(allocator, bytes_per_element * element_count_, storage_type,
+                                 stream);
   if (!result) { return ForwardError(result); }
 
   return initializeDLContext();
@@ -439,7 +441,9 @@ Expected<void> Tensor::initializeDLContext() {
 
   // change the release_func on the existing memory buffer
   auto result = memory_buffer_.wrapMemory(pointer, size, storage_type,
-                                          [buffer = buffer](void* pointer) mutable {
+                                          [buffer = buffer](void* pointer,
+                                                            void* /*stream*/) mutable {
+                                            (void)pointer;
                                             buffer.reset();
                                             return Success;
                                           });

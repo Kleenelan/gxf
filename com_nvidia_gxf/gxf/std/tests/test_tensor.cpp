@@ -218,7 +218,7 @@ TEST(Tensor, wrapMemory) {
   void* pointer_ = this;
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                   &release_func_params_match](void* pointer) {
+                                                   &release_func_params_match](void* pointer, void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };
@@ -307,7 +307,7 @@ TEST(Tensor, wrapMemoryCustom) {
   void* pointer_ = this;
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                   &release_func_params_match](void* pointer) {
+                                                   &release_func_params_match](void* pointer, void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };
@@ -387,7 +387,7 @@ TEST(Tensor, permute) {
   void* pointer_ = arr.data();
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                   &release_func_params_match](void* pointer) {
+                                                   &release_func_params_match](void* pointer, void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };
@@ -530,7 +530,7 @@ TEST(Tensor, noCopyReshape) {
   void* pointer_ = arr.data();
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                   &release_func_params_match](void* pointer) {
+                                                   &release_func_params_match](void* pointer, void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };
@@ -737,7 +737,7 @@ TEST(Tensor, insertSingletonDimension) {
   void* pointer_ = arr.data();
   bool release_func_params_match = false;
   MemoryBuffer::release_function_t release_func = [pointer_,
-                                                   &release_func_params_match](void* pointer) {
+                                                   &release_func_params_match](void* pointer, void* /*stream*/) {
     release_func_params_match = (pointer == pointer_);
     return Success;
   };
@@ -977,7 +977,7 @@ TEST_P(TensorStorageParameterizedTestFixture, dldeviceFromPointer) {
   ASSERT_TRUE(block1.has_value());
   auto data_pointer = block1.value();
 
-  MemoryBuffer::release_function_t release_func = [](void* pointer) { return Success; };
+  MemoryBuffer::release_function_t release_func = [](void* pointer, void* /*stream*/) { return Success; };
 
   // Initialize tensor
   Tensor* tensor = new Tensor();
@@ -1184,7 +1184,7 @@ TEST(Tensor, toDLManagedTensorContext) {
 
   auto data_pointer = block1.value();
 
-  MemoryBuffer::release_function_t release_func = [](void* pointer) { return Success; };
+  MemoryBuffer::release_function_t release_func = [](void* pointer, void* /*stream*/) { return Success; };
 
   // Initialize tensor
   Tensor* tensor = new Tensor();

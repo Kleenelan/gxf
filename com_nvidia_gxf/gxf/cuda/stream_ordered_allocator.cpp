@@ -255,6 +255,35 @@ gxf_result_t StreamOrderedAllocator::free_abi(void* pointer) {
   return GXF_FAILURE;
 }
 
+gxf_result_t StreamOrderedAllocator::free_abi(void* pointer, void* stream) {
+  const auto managed_it = managed_map_.find(pointer);
+  if (managed_it != managed_map_.end()) {
+    // Managed memory is not stream-ordered; free immediately.
+    CHECK_CUDA_ERROR_RESULT(cudaFree(pointer), "Failed to free managed cuda memory");
+    managed_map_.erase(pointer);
+    return GXF_SUCCESS;
+  }
+
+  const auto it = pool_map_.find(pointer);
+  if (it != pool_map_.end()) {
+    if (stream != nullptr) {
+      // Stream-ordered asynchronous free on the caller's stream.
+      CHECK_CUDA_ERROR_RESULT(cudaFreeAsync(pointer, static_cast<cudaStream_t>(stream)),
+                              "Failed to free cuda memory");
+    } else if (stream_) {
+      // No caller stream provided: fall back to the allocator's internal stream
+      // and synchronize to preserve synchronous free semantics.
+      CHECK_CUDA_ERROR_RESULT(cudaFreeAsync(pointer, stream_), "Failed to free cuda memory");
+      CHECK_CUDA_ERROR_RESULT(cudaStreamSynchronize(stream_), "Failed to synchronize cuda stream");
+    }
+    pool_map_.erase(pointer);
+    return GXF_SUCCESS;
+  }
+  GXF_LOG_ERROR("The provided memory pointer is not defined within this memory pool [%05ld]('%s').",
+                eid(), name());
+  return GXF_FAILURE;
+}
+
 Expected<size_t> StreamOrderedAllocator::get_pool_size(MemoryStorageType type) const {
   if (type == MemoryStorageType::kCudaManaged) {
     // Managed allocations are not pooled.

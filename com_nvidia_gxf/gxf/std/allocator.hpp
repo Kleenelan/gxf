@@ -120,6 +120,9 @@ struct Allocator : public Component {
   virtual gxf_result_t is_available_abi(uint64_t size) = 0;
   virtual gxf_result_t allocate_abi(uint64_t size, int32_t type, void** pointer) = 0;
   virtual gxf_result_t free_abi(void* pointer) = 0;
+  // Stream-aware deallocation. Default implementation forwards to the single-argument
+  // free_abi for allocators which are not stream-ordered.
+  virtual gxf_result_t free_abi(void* pointer, void* stream);
   virtual uint64_t block_size_abi() const;
 
   // Returns true if the allocator can provide a memory block with the given size.
@@ -130,6 +133,10 @@ struct Allocator : public Component {
 
   // Frees the given memory block.
   Expected<void> free(byte* pointer);
+
+  // Frees the given memory block with an associated CUDA stream. The allocator may defer
+  // the actual deallocation until the stream has completed all prior work.
+  Expected<void> free(byte* pointer, void* stream);
 
   // Get the block size of this allocator, defaults to 1 for byte-based allocators
   uint64_t block_size() const;

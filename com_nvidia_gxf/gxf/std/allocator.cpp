@@ -26,7 +26,20 @@ Expected<byte*> Allocator::allocate(uint64_t size, MemoryStorageType type) {
 
 // Frees the given memory block.
 Expected<void> Allocator::free(byte* pointer) {
-  Expected<void> result =  ExpectedOrCode(free_abi(static_cast<void*>(pointer)));
+  Expected<void> result = ExpectedOrCode(free_abi(static_cast<void*>(pointer)));
+  GxfEntityNotifyEventType(context(), eid(), GXF_EVENT_MEMORY_FREE);
+  return result;
+}
+
+// Stream-aware free: default forwards to the single-argument implementation.
+gxf_result_t Allocator::free_abi(void* pointer, void* stream) {
+  (void)stream;
+  return free_abi(pointer);
+}
+
+// Frees the given memory block with an associated CUDA stream.
+Expected<void> Allocator::free(byte* pointer, void* stream) {
+  Expected<void> result = ExpectedOrCode(free_abi(static_cast<void*>(pointer), stream));
   GxfEntityNotifyEventType(context(), eid(), GXF_EVENT_MEMORY_FREE);
   return result;
 }

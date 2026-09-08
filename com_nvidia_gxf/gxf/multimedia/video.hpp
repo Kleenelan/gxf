@@ -824,13 +824,13 @@ class VideoBuffer {
   template <VideoFormat C>
   Expected<void> resize(uint32_t width, uint32_t height, SurfaceLayout layout,
                         MemoryStorageType storage_type, Handle<Allocator> allocator,
-                        bool stride_align = true) {
+                        bool stride_align = true, void* stream = nullptr) {
     VideoTypeTraits<C> video_type;
     VideoFormatSize<C> color_format;
     uint64_t size = color_format.size(width, height, stride_align);
     auto color_planes = color_format.getDefaultColorPlanes(width, height, stride_align);
     VideoBufferInfo buffer_info{width, height, video_type.value, color_planes, layout};
-    return resizeCustom(buffer_info, size, storage_type, allocator);
+    return resizeCustom(buffer_info, size, storage_type, allocator, stream);
   }
 
   // Type of the callback function to release memory passed to the VideoFrame using the
@@ -876,7 +876,8 @@ class VideoBuffer {
   // Resizes the video frame and allocates the corresponding memory with the allocator provided
   // Any data previously stored in the frame would be freed
   Expected<void> resizeCustom(VideoBufferInfo buffer_info, uint64_t size,
-                              MemoryStorageType storage_type, Handle<Allocator> allocator);
+                              MemoryStorageType storage_type, Handle<Allocator> allocator,
+                              void* stream = nullptr);
 
   // Helper function to get primitive types for color formats that are valid (planar) for moving
   // from  Tensor to VideoBuffer, and vice versa. If color_format is not valid,
